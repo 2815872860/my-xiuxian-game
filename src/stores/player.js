@@ -8,6 +8,32 @@ export const usePlayerStore = defineStore('player', {
   state: () => ({
     // 是否新玩家
     isNewPlayer: true,
+    // 第一阶段角色命书
+    race: 'human',
+    gender: 'female',
+    origin: 'village',
+    appearanceId: '',
+    appearancePrompt: '',
+    bodyProfile: {
+      physique: 'clear-bone',
+      complexion: 'pale-ink',
+      hair: 'half-tied',
+      bearing: 'quiet'
+    },
+    spiritRoot: '未觉醒',
+    startingTechnique: '无',
+    birthStory: '',
+    characterProfile: null,
+    worldState: {
+      day: 1,
+      season: '初春',
+      currentRegion: 'village',
+      visitedRegions: ['village'],
+      discoveredClues: [],
+      relationshipLedger: {},
+      storyFlags: [],
+      journal: []
+    },
     // GM模式开关
     isGMMode: false,
     // 主题设置
@@ -246,6 +272,63 @@ export const usePlayerStore = defineStore('player', {
     }
   },
   actions: {
+    // 创建完成后一次性写入命书与第一张地图的初始状态
+    async beginJourney(profile) {
+      const originRules = {
+        village: { level: 1, realm: '无修为', maxCultivation: 100 },
+        sect: { level: 1, realm: '练气一重', maxCultivation: 200 },
+        family: { level: 2, realm: '练气二重', maxCultivation: 300 },
+        rogue: { level: 1, realm: '练气一重', maxCultivation: 200 },
+        demon: { level: 2, realm: '练气二重', maxCultivation: 300 }
+      }
+      const originRule = originRules[profile.origin] || originRules.village
+      const origin = profile.originData || {}
+
+      this.name = profile.name || '无名修士'
+      this.race = profile.race || 'human'
+      this.gender = profile.gender || 'female'
+      this.origin = profile.origin || 'village'
+      this.appearanceId = profile.appearanceId || ''
+      this.appearancePrompt = profile.appearancePrompt || ''
+      this.bodyProfile = { ...this.bodyProfile, ...(profile.bodyProfile || {}) }
+      this.spiritRoot = profile.spiritRoot || '未觉醒'
+      this.startingTechnique = profile.startingTechnique || '无'
+      this.birthStory = profile.birthStory || origin.opening || ''
+      this.characterProfile = {
+        ...profile,
+        createdAt: Date.now()
+      }
+      this.level = originRule.level
+      this.realm = originRule.realm
+      this.cultivation = Number(origin.cultivation || 0)
+      this.maxCultivation = originRule.maxCultivation
+      this.spirit = Number(origin.spirit || 0)
+      this.spiritStones = Number(origin.spiritStones || 0)
+      this.baseAttributes = {
+        ...this.baseAttributes,
+        ...(origin.stats || {})
+      }
+      this.unlockedLocations = [origin.place || '青石村']
+      this.worldState = {
+        day: 1,
+        season: '初春',
+        currentRegion: this.origin,
+        visitedRegions: [this.origin],
+        discoveredClues: [],
+        relationshipLedger: {},
+        storyFlags: ['chapter-one-open'],
+        journal: [
+          {
+            id: `opening-${Date.now()}`,
+            title: '命书初开',
+            text: this.birthStory,
+            day: 1
+          }
+        ]
+      }
+      this.isNewPlayer = false
+      await this.saveData()
+    },
     // 更新HTML暗黑模式类
     updateHtmlDarkMode(isDarkMode) {
       const htmlEl = document.documentElement
@@ -263,6 +346,8 @@ export const usePlayerStore = defineStore('player', {
           const decryptedData = decryptData(savedData)
           if (decryptedData && validateData(decryptedData)) {
             Object.assign(this.$state, decryptedData)
+            // 旧版存档没有命书字段，进入新版时重新走角色创建，避免半套数据直接进入地图。
+            if (!decryptedData.characterProfile) this.isNewPlayer = true
           } else {
             console.error('存档数据验证失败，使用初始数据')
           }
@@ -349,9 +434,10 @@ export const usePlayerStore = defineStore('player', {
       const realmsLength = getRealmLength()
       // 检查是否可以突破到下一个境界
       if (this.level < realmsLength) {
-        const nextRealm = getRealmName(this.level)
+        const nextLevel = this.realm === '无修为' ? this.level : this.level + 1
+        const nextRealm = getRealmName(nextLevel)
         // 更新境界信息
-        this.level += 1
+        this.level = nextLevel
         this.realm = nextRealm.name // 使用完整的境界名称（如：练气一层）
         this.maxCultivation = nextRealm.maxCultivation
         this.cultivation = 0 // 重置修为值

@@ -2,393 +2,129 @@
   <n-config-provider :theme="playerStore.isDarkMode ? darkTheme : null">
     <n-message-provider>
       <n-dialog-provider>
-        <n-spin :show="isLoading" description="正在加载游戏数据...">
-          <n-layout>
-            <n-layout-header bordered>
-              <div class="header-content">
-                <n-page-header>
-                  <template #title>我的放置仙途</template>
-                  <template #extra>
-                    <n-button quaternary circle @click="playerStore.toggle">
-                      <template #icon>
-                        <n-icon>
-                          <Sunny v-if="playerStore.isDarkMode" />
-                          <Moon v-else />
-                        </n-icon>
-                      </template>
-                    </n-button>
-                  </template>
-                </n-page-header>
-                <n-scrollbar x-scrollable trigger="none">
-                  <n-menu
-                    mode="horizontal"
-                    :options="menuOptions"
-                    :value="getCurrentMenuKey()"
-                    @update:value="handleMenuClick"
-                  />
-                </n-scrollbar>
-              </div>
-            </n-layout-header>
-            <n-layout-content>
-              <div class="content-wrapper">
-                <n-card>
-                  <n-space vertical>
-                    <n-descriptions bordered>
-                      <n-descriptions-item label="道号">
-                        {{ playerStore.name }}
-                      </n-descriptions-item>
-                      <n-descriptions-item label="境界">
-                        {{ getRealmName(playerStore.level).name }}
-                      </n-descriptions-item>
-                      <n-descriptions-item label="修为">
-                        {{ playerStore.cultivation }} / {{ playerStore.maxCultivation }}
-                      </n-descriptions-item>
-                      <n-descriptions-item label="灵力">
-                        {{ playerStore.spirit.toFixed(2) }}
-                      </n-descriptions-item>
-                      <n-descriptions-item label="灵石">
-                        {{ playerStore.spiritStones }}
-                      </n-descriptions-item>
-                      <n-descriptions-item label="强化石">
-                        {{ playerStore.reinforceStones }}
-                      </n-descriptions-item>
-                    </n-descriptions>
-                    <n-collapse>
-                      <n-collapse-item title="详细信息" name="1">
-                        <n-divider>基础属性</n-divider>
-                        <n-descriptions bordered :column="2">
-                          <n-descriptions-item label="生命值">
-                            {{ (playerStore.baseAttributes.health || 0).toFixed(0) }}
-                          </n-descriptions-item>
-                          <n-descriptions-item label="攻击力">
-                            {{ (playerStore.baseAttributes.attack || 0).toFixed(0) }}
-                          </n-descriptions-item>
-                          <n-descriptions-item label="防御力">
-                            {{ (playerStore.baseAttributes.defense || 0).toFixed(0) }}
-                          </n-descriptions-item>
-                          <n-descriptions-item label="速度">
-                            {{ (playerStore.baseAttributes.speed || 0).toFixed(0) }}
-                          </n-descriptions-item>
-                        </n-descriptions>
-                        <n-divider>战斗属性</n-divider>
-                        <n-descriptions bordered :column="3">
-                          <n-descriptions-item label="暴击率">
-                            {{ (playerStore.combatAttributes.critRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="连击率">
-                            {{ (playerStore.combatAttributes.comboRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="反击率">
-                            {{ (playerStore.combatAttributes.counterRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="眩晕率">
-                            {{ (playerStore.combatAttributes.stunRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="闪避率">
-                            {{ (playerStore.combatAttributes.dodgeRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="吸血率">
-                            {{ (playerStore.combatAttributes.vampireRate * 100).toFixed(1) }}%
-                          </n-descriptions-item>
-                        </n-descriptions>
-                        <n-divider>战斗抗性</n-divider>
-                        <n-descriptions bordered :column="3">
-                          <n-descriptions-item label="抗暴击">
-                            {{ (playerStore.combatResistance.critResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="抗连击">
-                            {{ (playerStore.combatResistance.comboResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="抗反击">
-                            {{ (playerStore.combatResistance.counterResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="抗眩晕">
-                            {{ (playerStore.combatResistance.stunResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="抗闪避">
-                            {{ (playerStore.combatResistance.dodgeResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="抗吸血">
-                            {{ (playerStore.combatResistance.vampireResist * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                        </n-descriptions>
-                        <n-divider>特殊属性</n-divider>
-                        <n-descriptions bordered :column="4">
-                          <n-descriptions-item label="强化治疗">
-                            {{ (playerStore.specialAttributes.healBoost * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="强化爆伤">
-                            {{ (playerStore.specialAttributes.critDamageBoost * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="弱化爆伤">
-                            {{ (playerStore.specialAttributes.critDamageReduce * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="最终增伤">
-                            {{ (playerStore.specialAttributes.finalDamageBoost * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="最终减伤">
-                            {{ (playerStore.specialAttributes.finalDamageReduce * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="战斗属性提升">
-                            {{ (playerStore.specialAttributes.combatBoost * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                          <n-descriptions-item label="战斗抗性提升">
-                            {{ (playerStore.specialAttributes.resistanceBoost * 100 || 0).toFixed(1) }}%
-                          </n-descriptions-item>
-                        </n-descriptions>
-                      </n-collapse-item>
-                    </n-collapse>
-                    <n-progress
-                      type="line"
-                      :percentage="Number(((playerStore.cultivation / playerStore.maxCultivation) * 100).toFixed(2))"
-                      indicator-text-color="rgba(255, 255, 255, 0.82)"
-                      rail-color="rgba(32, 128, 240, 0.2)"
-                      color="#2080f0"
-                      :show-indicator="true"
-                      indicator-placement="inside"
-                      processing
-                    />
-                  </n-space>
-                </n-card>
-                <router-view />
-              </div>
-            </n-layout-content>
-          </n-layout>
-        </n-spin>
+        <div class="app-shell" :class="{ 'app-shell--dark': playerStore.isDarkMode }">
+          <div v-if="!isReady" class="app-loading"><span class="loading-seal">问</span><p>正在展开命书</p></div>
+          <template v-else>
+            <header v-if="!playerStore.isNewPlayer" class="world-header">
+              <button class="world-brand" type="button" @click="router.push('/world')">
+                <span class="world-brand-seal">问</span><span><b>问道修行录</b><small>山河自选 · 命由己定</small></span>
+              </button>
+              <nav class="world-nav" aria-label="主导航">
+                <button v-for="item in navItems" :key="item.path" type="button" :class="{ active: route.path === item.path }" @click="router.push(item.path)"><span>{{ item.mark }}</span>{{ item.name }}</button>
+              </nav>
+              <div class="header-player"><span class="header-avatar">{{ playerStore.name?.slice(0, 1) || '问' }}</span><div><b>{{ playerStore.name || '无名修士' }}</b><small>{{ playerStore.realm }}</small></div><button class="header-menu" type="button" aria-label="打开设置" @click="router.push('/settings')">···</button></div>
+            </header>
+            <main class="app-content"><router-view /></main>
+            <nav v-if="!playerStore.isNewPlayer" class="mobile-nav" aria-label="移动端主导航">
+              <button v-for="item in mobileNavItems" :key="item.path" type="button" :class="{ active: route.path === item.path }" @click="router.push(item.path)"><span>{{ item.mark }}</span><small>{{ item.name }}</small></button>
+            </nav>
+          </template>
+        </div>
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
 </template>
 
 <script setup>
-  import { useRouter, useRoute } from 'vue-router'
+  import { onMounted, onUnmounted, ref, watch } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
+  import { darkTheme } from 'naive-ui'
   import { usePlayerStore } from './stores/player'
-  import { h, ref } from 'vue'
-  import { NIcon, darkTheme } from 'naive-ui'
-  import {
-    BookOutlined,
-    ExperimentOutlined,
-    CompassOutlined,
-    TrophyOutlined,
-    SettingOutlined,
-    MedicineBoxOutlined,
-    GiftOutlined,
-    HomeOutlined,
-    SmileOutlined,
-    AppstoreOutlined,
-    BugOutlined
-  } from '@ant-design/icons-vue'
-  import { Moon, Sunny, Flash } from '@vicons/ionicons5'
-  import { getRealmName } from './plugins/realm'
 
   const router = useRouter()
   const route = useRoute()
   const playerStore = usePlayerStore()
-  const spiritWorker = ref(null)
-  const menuOptions = ref([])
-  const isNewPlayer = ref(false)
-  const isLoading = ref(true) // 添加加载状态
+  const isReady = ref(false)
+  const navItems = [
+    { path: '/world', name: '问道', mark: '山' },
+    { path: '/cultivation', name: '修炼', mark: '息' },
+    { path: '/exploration', name: '探索', mark: '游' },
+    { path: '/inventory', name: '行囊', mark: '藏' },
+    { path: '/alchemy', name: '丹室', mark: '炉' }
+  ]
+  const mobileNavItems = navItems.slice(0, 4)
+  let spiritWorker
 
-  // 初始化数据加载
-  playerStore.initializePlayer().then(() => {
-    isLoading.value = false
-    getMenuOptions()
-  })
-
-  // 监听玩家状态
-  watch(
-    () => playerStore.isNewPlayer,
-    bool => {
-      isNewPlayer.value = bool
-      if (!bool && route.path === '/') {
-        router.push('/cultivation')
-      }
-    }
-  )
-
-  // 灵力获取相关配置
-  const baseGainRate = 1 // 基础灵力获取率
-
-  const getMenuOptions = () => {
-    menuOptions.value = [
-      ,
-      ...(isNewPlayer.value
-        ? [
-            {
-              label: '欢迎',
-              key: '',
-              icon: renderIcon(HomeOutlined)
-            }
-          ]
-        : []),
-      {
-        label: '修炼',
-        key: 'cultivation',
-        icon: renderIcon(BookOutlined)
-      },
-      {
-        label: '背包',
-        key: 'inventory',
-        icon: renderIcon(ExperimentOutlined)
-      },
-      {
-        label: '抽奖',
-        key: 'gacha',
-        icon: renderIcon(GiftOutlined)
-      },
-      {
-        label: '炼丹',
-        key: 'alchemy',
-        icon: renderIcon(MedicineBoxOutlined)
-      },
-      {
-        label: '探索',
-        key: 'exploration',
-        icon: renderIcon(CompassOutlined)
-      },
-      {
-        label: '秘境',
-        key: 'dungeon',
-        icon: renderIcon(Flash)
-      },
-      {
-        label: '成就',
-        key: 'achievements',
-        icon: renderIcon(TrophyOutlined)
-      },
-      {
-        label: '设置',
-        key: 'settings',
-        icon: renderIcon(SettingOutlined)
-      },
-      ...(playerStore.isGMMode
-        ? [
-            {
-              label: 'GM调试',
-              key: 'gm',
-              icon: renderIcon(SmileOutlined)
-            }
-          ]
-        : [])
-    ]
+  const syncRoute = () => {
+    if (!playerStore.isNewPlayer && route.path === '/') router.replace('/world')
+    if (playerStore.isNewPlayer && route.path !== '/') router.replace('/')
   }
-  // 自动获取灵力
-  const startAutoGain = () => {
-    if (spiritWorker.value) return
-    spiritWorker.value = new Worker(new URL('./workers/spirit.js', import.meta.url))
-    spiritWorker.value.onmessage = e => {
-      if (e.data.type === 'gain') {
+  const startOnlineCultivation = () => {
+    if (playerStore.isNewPlayer || spiritWorker) return
+    spiritWorker = new Worker(new URL('./workers/spirit.js', import.meta.url))
+    spiritWorker.onmessage = event => {
+      if (event.data.type === 'gain') {
         playerStore.totalCultivationTime += 1
-        playerStore.gainSpirit(baseGainRate)
+        playerStore.gainSpirit(1)
       }
     }
-    spiritWorker.value.postMessage({ type: 'start' })
+    spiritWorker.postMessage({ type: 'start' })
   }
-
-  onMounted(() => {
-    startAutoGain() // 启动自动获取灵力
+  onMounted(async () => {
+    await playerStore.initializePlayer()
+    isReady.value = true
+    syncRoute()
+    startOnlineCultivation()
   })
-
-  // 图标
-  const renderIcon = icon => {
-    return () => h(NIcon, null, { default: () => h(icon) })
-  }
-
-  // 获取当前路由对应的菜单key
-  const getCurrentMenuKey = () => {
-    const path = route.path.slice(1) // 移除开头的斜杠
-    return path // 如果是根路径，默认返回cultivation
-  }
-
-  // 菜单点击事件
-  const handleMenuClick = key => {
-    router.push(`/${key}`)
-  }
+  watch(() => playerStore.isNewPlayer, value => {
+    if (isReady.value) {
+      if (value) router.replace('/')
+      else {
+        router.replace('/world')
+        startOnlineCultivation()
+      }
+    }
+  })
+  onUnmounted(() => spiritWorker?.terminate())
 </script>
 
 <style>
-  * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  :root {
-    --n-color: rgb(16, 16, 20);
-    --n-text-color: rgba(255, 255, 255, 0.82);
-  }
-
-  html.dark {
-    background-color: var(--n-color);
-  }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans',
-      'Helvetica Neue', sans-serif;
-  }
-
-  .n-config-provider,
-  .n-layout {
-    height: 100%;
-    min-height: 100vh;
-  }
-
-  .header-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 16px;
-  }
-
-  .content-wrapper {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-
-  .n-card {
-    margin-bottom: 16px;
-  }
-
-  .footer-content {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    padding: 12px;
-  }
-
-  .n-page-header__title {
-    padding: 16px 0;
-    margin: 0 16px;
-  }
-
-  ::-webkit-scrollbar {
-    width: 12px;
-    height: 12px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background-color: rgba(0, 0, 0, 0.03);
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.3);
-  }
-
-  html.dark ::-webkit-scrollbar-track {
-    background-color: rgba(255, 255, 255, 0.03);
-  }
-
-  html.dark ::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.2);
-  }
-
-  html.dark ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(255, 255, 255, 0.3);
+  :root { color-scheme: light; font-family: 'Noto Serif SC', 'Songti SC', Georgia, serif; background: #e9e4d9; }
+  * { box-sizing: border-box; }
+  html, body, #app { min-width: 320px; min-height: 100%; margin: 0; }
+  body { margin: 0; background: #e9e4d9; }
+  button, input, textarea { font: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  .app-shell { min-height: 100vh; background: #e9e4d9; }
+  .app-shell--dark { filter: sepia(.08) brightness(.83); }
+  .app-loading { display: grid; place-items: center; min-height: 100vh; color: #7e817a; font-family: 'Microsoft YaHei', sans-serif; font-size: 12px; }
+  .loading-seal { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: 14px; color: #f2eadc; background: #28302d; font-family: serif; font-size: 23px; animation: loading-breathe 1.6s ease-in-out infinite; }
+  .world-header { position: relative; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 28px; min-height: 72px; padding: 12px clamp(15px, 4vw, 64px); background: rgba(244, 239, 228, .92); border-bottom: 1px solid rgba(39, 50, 46, .12); backdrop-filter: blur(12px); }
+  .world-brand { display: flex; align-items: center; gap: 10px; min-width: 175px; padding: 0; color: #28302d; background: transparent; border: 0; text-align: left; cursor: pointer; }
+  .world-brand-seal { display: grid; place-items: center; width: 34px; height: 34px; color: #f2eadc; background: #28302d; font-size: 17px; }
+  .world-brand b, .world-brand small { display: block; }
+  .world-brand b { font-size: 15px; letter-spacing: .08em; }
+  .world-brand small { margin-top: 4px; color: #82867c; font-family: 'Microsoft YaHei', sans-serif; font-size: 9px; }
+  .world-nav { display: flex; align-items: stretch; gap: 20px; height: 72px; }
+  .world-nav button { position: relative; display: flex; align-items: center; gap: 5px; padding: 0; color: #899087; background: transparent; border: 0; font-family: 'Microsoft YaHei', sans-serif; font-size: 11px; cursor: pointer; }
+  .world-nav button span { color: #a35d44; font-family: serif; font-size: 14px; }
+  .world-nav button::after { content: ''; position: absolute; right: 0; bottom: 14px; left: 0; height: 2px; background: transparent; }
+  .world-nav button.active { color: #28302d; }
+  .world-nav button.active::after { background: #a35d44; }
+  .header-player { display: flex; align-items: center; gap: 8px; min-width: 175px; justify-content: end; }
+  .header-avatar { display: grid; place-items: center; width: 29px; height: 29px; color: #f2eadc; background: #a35d44; font-size: 13px; }
+  .header-player b, .header-player small { display: block; }
+  .header-player b { max-width: 70px; overflow: hidden; font-family: 'Microsoft YaHei', sans-serif; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .header-player small { margin-top: 3px; color: #899087; font-family: 'Microsoft YaHei', sans-serif; font-size: 9px; }
+  .header-menu { margin-left: 8px; padding: 8px; color: #899087; background: transparent; border: 0; letter-spacing: 2px; cursor: pointer; }
+  .app-content { min-height: calc(100vh - 72px); }
+  .mobile-nav { display: none; }
+  @keyframes loading-breathe { 0%, 100% { transform: scale(.94); opacity: .72; } 50% { transform: scale(1); opacity: 1; } }
+  @media (max-width: 800px) {
+    .world-header { min-height: 58px; padding: 9px 15px; }
+    .world-brand { min-width: 0; }
+    .world-brand b { font-size: 13px; }
+    .world-brand small { display: none; }
+    .world-brand-seal { width: 30px; height: 30px; font-size: 15px; }
+    .world-nav { display: none; }
+    .header-player { min-width: auto; }
+    .header-player small { display: none; }
+    .header-menu { margin-left: 0; }
+    .app-content { min-height: calc(100vh - 58px); padding-bottom: 61px; }
+    .mobile-nav { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); height: 61px; padding-bottom: env(safe-area-inset-bottom); background: rgba(244, 239, 228, .94); border-top: 1px solid rgba(39, 50, 46, .13); backdrop-filter: blur(13px); }
+    .mobile-nav button { display: grid; place-items: center; align-content: center; gap: 3px; color: #92988c; background: transparent; border: 0; cursor: pointer; }
+    .mobile-nav button span { color: #8f9c8c; font-size: 17px; }
+    .mobile-nav button small { font-family: 'Microsoft YaHei', sans-serif; font-size: 9px; }
+    .mobile-nav button.active { color: #a35d44; }.mobile-nav button.active span { color: #a35d44; }
   }
 </style>

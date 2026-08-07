@@ -1,21 +1,28 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { usePlayerStore } from '../stores/player'
-import Home from '../views/Home.vue'
-import Cultivation from '../views/Cultivation.vue'
-import Inventory from '../views/Inventory.vue'
-import Exploration from '../views/Exploration.vue'
-import Achievements from '../views/Achievements.vue'
-import Settings from '../views/Settings.vue'
-import GM from '../views/GM.vue'
-import Alchemy from '../views/Alchemy.vue'
-import Dungeon from '../views/Dungeon.vue'
-import Gacha from '../views/Gacha.vue'
+import CharacterCreation from '../views/CharacterCreation.vue'
+import World from '../views/World.vue'
+
+const Cultivation = () => import('../views/Cultivation.vue')
+const Inventory = () => import('../views/Inventory.vue')
+const Exploration = () => import('../views/Exploration.vue')
+const Achievements = () => import('../views/Achievements.vue')
+const Settings = () => import('../views/Settings.vue')
+const GM = () => import('../views/GM.vue')
+const Alchemy = () => import('../views/Alchemy.vue')
+const Dungeon = () => import('../views/Dungeon.vue')
+const Gacha = () => import('../views/Gacha.vue')
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: CharacterCreation
+  },
+  {
+    path: '/world',
+    name: 'World',
+    component: World
   },
   {
     path: '/cultivation',
