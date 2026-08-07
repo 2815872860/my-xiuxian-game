@@ -2,6 +2,8 @@
 
 当前版本已经用可缩放的水墨占位视觉把布局和交互跑通。后续只需要替换 `public/assets/characters/` 下的文件，不需要改页面结构。
 
+完整的英文长提示词包见：[asset-prompts-full.md](./asset-prompts-full.md)。里面已经按文件名覆盖所有当前素材位，可以直接复制对应章节到图片生成工具。
+
 ## 优先生成
 
 1. `character-hero-placeholder.png`
