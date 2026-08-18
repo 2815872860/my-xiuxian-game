@@ -25,10 +25,11 @@
                       </n-button>
                     </n-space>
                   </template>
-                  <p v-if="playerStore.equippedArtifacts[type]">
-                    {{ playerStore.equippedArtifacts[type].name }}
-                  </p>
-                  <p v-else>未装备</p>
+                   <div class="inventory-item-summary" v-if="playerStore.equippedArtifacts[type]">
+                     <img class="inventory-item-art" :src="itemAsset(playerStore.equippedArtifacts[type])" :alt="playerStore.equippedArtifacts[type].name" />
+                     <p>{{ playerStore.equippedArtifacts[type].name }}</p>
+                   </div>
+                   <div class="inventory-item-summary" v-else><img class="inventory-item-art" :src="itemAsset({ type })" alt="未装备" /><p>未装备</p></div>
                   <template #footer>
                     <n-space justify="space-between">
                       <span>{{ name }}</span>
@@ -48,14 +49,26 @@
           </n-tab-pane>
           <n-tab-pane name="herbs" tab="灵草">
             <n-grid :cols="2" :x-gap="12" :y-gap="8" v-if="groupedHerbs.length">
-              <n-grid-item v-for="herb in groupedHerbs" :key="herb.id">
+              <n-grid-item v-for="herb in groupedHerbs" :key="`${herb.id}:${herb.quality || 'common'}`">
                 <n-card hoverable>
                   <template #header>
                     <n-space justify="space-between">
-                      <span>{{ herb.name }}({{ herb.count }})</span>
+                      <n-space align="center">
+                       <span class="inventory-item-title"><img class="inventory-item-art inventory-item-art--small" :src="itemAsset(herb)" :alt="herb.name" />{{ herb.name }}({{ herb.count }})</span>
+                        <n-tag size="small" :type="herbQualityTagType(herb.quality)">
+                          {{ herbQualityName(herb.quality) }}
+                        </n-tag>
+                      </n-space>
                     </n-space>
                   </template>
                   <p>{{ herb.description }}</p>
+                  <n-space v-if="herb.pillUsages.length" align="center" wrap>
+                    <n-text depth="3">可用于：</n-text>
+                    <n-tag v-for="pill in herb.pillUsages" :key="pill.id" size="small" type="info">
+                      {{ pill.name }}
+                    </n-tag>
+                  </n-space>
+                  <n-text v-else depth="3">暂未用于已掌握丹方</n-text>
                 </n-card>
               </n-grid-item>
             </n-grid>
@@ -67,7 +80,7 @@
                 <n-card hoverable>
                   <template #header>
                     <n-space justify="space-between">
-                      <span>{{ pill.name }}({{ pill.count }})</span>
+                       <span class="inventory-item-title"><img class="inventory-item-art inventory-item-art--small" :src="itemAsset(pill)" :alt="pill.name" />{{ pill.name }}({{ pill.count }})</span>
                       <n-button size="small" type="primary" @click="usePill(pill)">服用</n-button>
                     </n-space>
                   </template>
@@ -166,9 +179,9 @@
             <n-grid v-if="displayPets.length" :cols="2" :x-gap="12" :y-gap="8" style="margin-top: 16px">
               <n-grid-item v-for="pet in displayPets" :key="pet.id">
                 <n-card hoverable>
-                  <template #header>
-                    <n-space justify="space-between">
-                      <span>{{ pet.name }}</span>
+                     <template #header>
+                       <n-space justify="space-between">
+                         <span class="inventory-item-title"><img class="inventory-item-art inventory-item-art--small" :src="itemAsset(pet)" :alt="pet.name" />{{ pet.name }}</span>
                       <n-button size="small" type="primary" @click="useItem(pet)">
                         {{ playerStore.activePet?.id === pet.id ? '召回' : '出战' }}
                       </n-button>
@@ -359,13 +372,13 @@
           <n-card hoverable>
             <template #header>
               <n-space justify="space-between">
-                <span>{{ equipment.name }}</span>
+               <span class="inventory-item-title"><img class="inventory-item-art inventory-item-art--small" :src="itemAsset(equipment)" :alt="equipment.name" />{{ equipment.name }}</span>
                 <n-button size="small" type="warning" @click.stop="sellEquipment(equipment)">卖出</n-button>
               </n-space>
             </template>
             <n-space vertical>
-              <n-tag :style="{ color: equipment.qualityInfo.color }">
-                {{ equipment.qualityInfo.name }}
+              <n-tag :style="{ color: equipment.qualityInfo?.color }">
+                {{ equipment.qualityInfo?.name || equipment.quality || '未知品质' }}
               </n-tag>
               <n-text>境界要求：{{ getRealmName(equipment.requiredRealm).name }}</n-text>
             </n-space>
@@ -379,8 +392,8 @@
   <n-modal v-model:show="showEquipmentDetailModal" preset="dialog" :title="selectedEquipment?.name || '装备详情'">
     <n-descriptions bordered>
       <n-descriptions-item label="品质">
-        <span :style="{ color: selectedEquipment?.qualityInfo.color }">
-          {{ selectedEquipment?.qualityInfo.name }}
+        <span :style="{ color: selectedEquipment?.qualityInfo?.color }">
+          {{ selectedEquipment?.qualityInfo?.name || selectedEquipment?.quality || '未知品质' }}
         </span>
       </n-descriptions-item>
       <n-descriptions-item label="类型">
@@ -512,6 +525,7 @@
   import { getStatName, formatStatValue } from '../plugins/stats'
   import { getRealmName } from '../plugins/realm'
   import { pillRecipes, pillGrades, pillTypes, calculatePillEffect } from '../plugins/pills'
+  import { herbQualities } from '../plugins/herbs'
   import { enhanceEquipment, reforgeEquipment } from '../plugins/equipment'
 
   // 分页相关
@@ -542,6 +556,20 @@
 
   const playerStore = usePlayerStore()
   const message = useMessage()
+
+  const assetRoot = './assets/characters/'
+  const itemAsset = item => {
+    if (!item) return `${assetRoot}item-talisman.png`
+    if (item.type === 'food') return `${assetRoot}item-food.png`
+    if (item.type === 'pill') return `${assetRoot}item-pill.png`
+    if (item.type === 'pet') return `${assetRoot}character-hero-placeholder.png`
+    if (item.type === 'herb' || (!item.type && item.id !== 'food') || item.id?.includes('herb') || item.id?.includes('grass')) {
+      return `${assetRoot}item-herb-qinglu.png`
+    }
+    if (item.type === 'weapon') return `${assetRoot}item-wood-sword.png`
+    if (item.type === 'artifact') return `${assetRoot}item-talisman.png`
+    return `${assetRoot}item-talisman.png`
+  }
 
   // 使用丹药
   const usePill = pill => {
@@ -614,7 +642,7 @@
     if (petToRelease.value) {
       // 如果灵宠正在出战，先取消出战
       if (playerStore.activePet?.id === petToRelease.value.id) {
-        playerStore.activePet = null
+        playerStore.recallPet()
       }
       // 从背包中移除灵宠
       const index = playerStore.items.findIndex(item => item.id === petToRelease.value.id)
@@ -641,6 +669,7 @@
         item.id === playerStore.activePet?.id ||
         (selectedRarityToRelease.value !== 'all' && item.rarity !== selectedRarityToRelease.value)
     )
+    playerStore.saveData()
     showBatchReleaseConfirm.value = false
     message.success(
       `已放生${
@@ -881,7 +910,11 @@
       selectedEquipment.value.stats = { ...result.newStats }
       selectedEquipment.value.enhanceLevel = result.newLevel
       message.success('强化成功')
-      playerStore.saveData()
+      if (playerStore.equippedArtifacts[selectedEquipment.value.slot]?.id === selectedEquipment.value.id) {
+        playerStore.recalculateArtifactBonuses()
+      } else {
+        playerStore.saveData()
+      }
     } else {
       message.error(result.message || '强化失败')
     }
@@ -910,6 +943,9 @@
     if (confirm) {
       // 用户确认后，应用新属性
       selectedEquipment.value.stats = reforgeResult.value.newStats
+      if (playerStore.equippedArtifacts[selectedEquipment.value.slot]?.id === selectedEquipment.value.id) {
+        playerStore.recalculateArtifactBonuses()
+      }
       message.success('已确认新属性')
     } else {
       // 用户取消，保留原属性
@@ -936,17 +972,43 @@
   const groupedHerbs = computed(() => {
     const groups = {}
     playerStore.herbs.forEach(herb => {
-      if (!groups[herb.name]) {
-        groups[herb.name] = {
+      const groupKey = `${herb.id}:${herb.quality || 'common'}`
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
           ...herb,
-          count: 1
+          count: 1,
+          pillUsages: getPillUsages(herb.id)
         }
       } else {
-        groups[herb.name].count++
+        groups[groupKey].count++
       }
     })
     return Object.values(groups)
   })
+
+  // 获取灵草可用于炼制的丹药
+  const getPillUsages = herbId => {
+    return pillRecipes
+      .filter(
+        recipe =>
+          playerStore.pillRecipes.includes(recipe.id) &&
+          recipe.materials.some(material => material.herb === herbId)
+      )
+      .map(recipe => ({ id: recipe.id, name: recipe.name }))
+  }
+
+  const herbQualityName = quality => herbQualities[quality]?.name || herbQualities.common.name
+
+  const herbQualityTagType = quality => {
+    const types = {
+      common: 'default',
+      uncommon: 'success',
+      rare: 'info',
+      epic: 'warning',
+      legendary: 'error'
+    }
+    return types[quality] || 'default'
+  }
 
   // 计算丹方分组
   const groupedFormulas = computed(() => {
@@ -1050,6 +1112,11 @@
 </script>
 
 <style scoped>
+  .inventory-item-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; }
+  .inventory-item-summary p { margin: 0; }
+  .inventory-item-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+  .inventory-item-art { width: 56px; height: 56px; flex: none; object-fit: cover; border-radius: 8px; background: #e8dfd0; box-shadow: 0 2px 8px rgba(39, 50, 46, .12); }
+  .inventory-item-art--small { width: 30px; height: 30px; border-radius: 5px; }
   .n-card {
     cursor: pointer;
   }

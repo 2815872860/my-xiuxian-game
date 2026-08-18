@@ -43,6 +43,10 @@ export const formatStatValue = (stat, value) => {
   if (value === null || value === undefined) {
     return '0'
   }
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) {
+    return '0'
+  }
   // 这些属性需要显示为百分比
   const percentageStats = [
     'critRate',
@@ -69,7 +73,7 @@ export const formatStatValue = (stat, value) => {
     'luck'
   ]
   if (percentageStats.includes(stat)) {
-    return `${(value * 100).toFixed(1)}%`
+    return `${(numericValue * 100).toFixed(1)}%`
   }
-  return value.toFixed(1)
+  return numericValue.toFixed(1)
 }

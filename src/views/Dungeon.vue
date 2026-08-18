@@ -2,18 +2,26 @@
   <div class="dungeon-container">
     <n-card title="秘境探索">
       <template #header-extra>
-        <n-space>
-          <n-select
-            v-model:value="playerStore.dungeonDifficulty"
+          <n-space>
+            <n-select
+              v-model:value="playerStore.dungeonDifficulty"
             @update:value="handleUpdateValue"
             placeholder="请选择难度"
             :options="dungeonOptions"
             style="width: 120px"
-            :disabled="dungeonState.inCombat || dungeonState.showingOptions"
-          />
-          <n-button
-            type="primary"
-            @click="startDungeon"
+              :disabled="dungeonState.inCombat || dungeonState.showingOptions"
+            />
+            <n-button
+              v-if="dungeonState.inCombat || dungeonState.showingOptions"
+              type="warning"
+              secondary
+              @click="retreatDungeon"
+            >
+              暂离秘境
+            </n-button>
+            <n-button
+              type="primary"
+              @click="startDungeon"
             :disabled="dungeonState.inCombat || dungeonState.showingOptions"
           >
             开始探索
@@ -23,6 +31,15 @@
       <n-space vertical>
         <!-- 层数显示 -->
         <n-statistic label="当前层数" :value="dungeonState.floor" />
+        <div class="dungeon-progress">
+          <div><span>当前难度</span><b>{{ difficultyLabel }}</b></div>
+          <div><span>本次进度</span><b>{{ runActive ? `第 ${dungeonState.floor} 层` : '尚未开始' }}</b></div>
+          <div><span>历史最高</span><b>第 {{ floorData }} 层</b></div>
+        </div>
+        <p class="dungeon-hint">普通层有机会掉落武器，五层精英必掉装备，十层 Boss 必掉上品法宝。</p>
+        <n-alert v-if="runSummary" type="success" :bordered="false">
+          {{ runSummary }}
+        </n-alert>
         <!-- 选项界面 -->
         <n-card v-if="dungeonState.showingOptions" title="选择增益">
           <template #header-extra>
@@ -289,11 +306,12 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue'
+  import { computed, onUnmounted, ref } from 'vue'
   import { usePlayerStore } from '../stores/player'
   import { getRealmName } from '../plugins/realm'
   import { CombatManager, CombatEntity, generateEnemy, CombatType } from '../plugins/combat'
   import { getRandomOptions } from '../plugins/dungeon'
+  import { generateDungeonEquipment, getDungeonLootQuality } from '../plugins/dungeonLoot'
   import dungeonBuffs from '../plugins/dungeonBuffs'
   import { useMessage } from 'naive-ui'
   import LogPanel from '../components/LogPanel.vue'
@@ -307,23 +325,27 @@
   const enemyHurt = ref(false)
   const infoShow = ref(false)
   const infoType = ref('')
+  let combatSession = 0
 
-  const floorData = computed(() => {
+  const highestFloorKey = computed(() => {
     switch (playerStore.dungeonDifficulty) {
       case 1:
-        return playerStore.dungeonHighestFloor
+        return 'dungeonHighestFloor'
       case 2:
-        return playerStore.dungeonHighestFloor_2
+        return 'dungeonHighestFloor_2'
       case 5:
-        return playerStore.dungeonHighestFloor_5
+        return 'dungeonHighestFloor_5'
       case 10:
-        return playerStore.dungeonHighestFloor_10
+        return 'dungeonHighestFloor_10'
       case 100:
-        return playerStore.dungeonHighestFloor_100
+        return 'dungeonHighestFloor_100'
       default:
-        return playerStore.dungeonHighestFloor
+        return 'dungeonHighestFloor'
     }
   })
+
+  const floorData = computed(() => playerStore[highestFloorKey.value] || 0)
+  const difficultyLabel = computed(() => ({ 1: '简单', 2: '普通', 5: '困难', 10: '地狱', 100: '通天' }[playerStore.dungeonDifficulty] || '简单'))
 
   // 副本状态
   const dungeonState = ref({
@@ -333,9 +355,11 @@
     currentOptions: [],
     combatManager: null
   })
+  const runActive = computed(() => dungeonState.value.inCombat || dungeonState.value.showingOptions)
 
   // 当前战斗日志
   const combatLog = ref([])
+  const runSummary = ref('')
 
   // 根据选项类型获取颜色
   const getOptionColor = type => {
@@ -390,6 +414,23 @@
       spiritDamage: playerStore.spirit * 0.1,
       maxHealth: playerStore.baseAttributes.health
     }
+    playerStore.getActiveEffects().forEach(effect => {
+      const value = Number(effect.value)
+      if (!Number.isFinite(value)) return
+      if (effect.type === 'allAttributes') {
+        const multiplier = 1 + value
+        baseStats.health *= multiplier
+        baseStats.maxHealth *= multiplier
+        baseStats.damage *= multiplier
+        baseStats.defense *= multiplier
+        baseStats.speed *= multiplier
+        ;['critRate', 'comboRate', 'counterRate', 'stunRate', 'dodgeRate', 'vampireRate', 'critResist', 'comboResist', 'counterResist', 'stunResist', 'dodgeResist', 'vampireResist', 'healBoost', 'critDamageBoost', 'critDamageReduce', 'finalDamageBoost', 'finalDamageReduce', 'combatBoost', 'resistanceBoost'].forEach(key => {
+          baseStats[key] += value
+        })
+      } else if (effect.type === 'combatBoost') {
+        baseStats.combatBoost += value
+      }
+    })
     const entity = new CombatEntity(playerStore.name, playerStore.level, baseStats, playerStore.realm)
     // 应用所有激活的增益效果
     const activeBuffs = dungeonBuffs.getActiveBuffs()
@@ -403,7 +444,10 @@
 
   // 开始新的副本
   const startDungeon = () => {
+    combatSession += 1
     const startingFloor = floorData.value
+    refreshNumber.value = 3
+    runSummary.value = ''
     dungeonState.value = {
       floor: startingFloor,
       inCombat: false,
@@ -412,7 +456,25 @@
       combatManager: null
     }
     playerStore.dungeonTotalRuns++ // 增加总探索次数
+    playerStore.saveData()
     nextFloor()
+  }
+
+  const retreatDungeon = () => {
+    if (!runActive.value) return
+    const stoppedFloor = dungeonState.value.floor
+    combatSession += 1
+    dungeonBuffs.clear(playerStore)
+    dungeonState.value = {
+      ...dungeonState.value,
+      inCombat: false,
+      showingOptions: false,
+      currentOptions: [],
+      combatManager: null
+    }
+    runSummary.value = `你在第 ${stoppedFloor} 层暂离秘境，本次未计失败。`
+    playerStore.saveData()
+    message.info('已暂离秘境，临时增益已清除')
   }
 
   // 进入下一层
@@ -442,6 +504,7 @@
   // 选择选项
   const selectOption = option => {
     dungeonBuffs.apply(playerStore, option)
+    playerStore.saveData()
     message.success(`选择了：${option.name}`)
     dungeonState.value.showingOptions = false
     dungeonState.value.currentOptions = []
@@ -469,12 +532,19 @@
     } else {
       // 跌落境界作为惩罚
       const randomGradeLoss = Math.floor(Math.random() * 3) + 1 // 随机损失1-3个境界
-      const playerLevel = Math.max(1, playerStore.level - randomGradeLoss) // 降低境界
+      const previousLevel = playerStore.level
+      const playerLevel = Math.max(1, previousLevel - randomGradeLoss) // 降低境界
       playerStore.level = playerLevel
       playerStore.cultivation = 0 // 移除所有灵力
-      playerStore.maxCultivation = getRealmName(playerLevel).maxCultivation // 降低所需最大灵力值
-      message.error(`战斗失败！跌落了${playerLevel}个境界。`)
+      if (playerLevel < previousLevel) {
+        const fallenRealm = getRealmName(playerLevel)
+        playerStore.realm = fallenRealm.name
+        playerStore.maxCultivation = fallenRealm.maxCultivation // 降低所需最大灵力值
+      }
+      message.error(`战斗失败！跌落了${previousLevel - playerLevel}个境界，当前为${playerStore.realm}。`)
     }
+    playerStore.saveData()
+    runSummary.value = `本次探索止步于第 ${dungeonState.value.floor} 层，修整后可从历史最高层继续挑战。`
   }
 
   // 开始战斗
@@ -488,40 +558,43 @@
     // 创建敌人
     const enemy = generateEnemy(floor, enemyType, playerStore.dungeonDifficulty)
     // 创建战斗管理器
-    dungeonState.value.combatManager = new CombatManager(playerEntity, enemy, log => {
-      if (logRef.value) {
-        logRef.value.addLog(log)
-      }
-    })
+    dungeonState.value.combatManager = new CombatManager(playerEntity, enemy, enemyType)
     dungeonState.value.inCombat = true
     dungeonState.value.combatManager.start() // 初始化战斗状态
-    autoCombat() // 开始自动战斗
+    autoCombat(++combatSession) // 开始自动战斗
   }
 
   // 自动战斗
-  const autoCombat = async () => {
-    while (dungeonState.value.inCombat) {
+  const autoCombat = async session => {
+    let logCursor = 0
+    while (session === combatSession && dungeonState.value.inCombat) {
       const result = dungeonState.value.combatManager.executeTurn()
-      const getCombatLog = dungeonState.value.combatManager.getCombatLog()
+      if (!result) {
+        dungeonState.value.inCombat = false
+        break
+      }
+      const allCombatLog = dungeonState.value.combatManager.getCombatLog()
+      const getCombatLog = allCombatLog.slice(logCursor)
+      logCursor = allCombatLog.length
+      getCombatLog.forEach(item => {
+        logRef.value?.addLog('info', item)
+      })
+      const firstAttack = result.results?.[0]
       // 添加动画效果
-      if (result.attacker === dungeonState.value.combatManager.player) {
+      if (firstAttack?.attacker === dungeonState.value.combatManager.player.name) {
         playerAttacking.value = true
         enemyHurt.value = true
         await new Promise(resolve => setTimeout(resolve, 500))
         playerAttacking.value = false
         enemyHurt.value = false
-      } else {
+      } else if (firstAttack) {
         enemyAttacking.value = true
         playerHurt.value = true
         await new Promise(resolve => setTimeout(resolve, 500))
         enemyAttacking.value = false
         playerHurt.value = false
       }
-      if (!result) break
-      // 更新战斗日志
-      getCombatLog.forEach(item => {
-        logRef.value?.addLog('info', item)
-      })
+      if (session !== combatSession || !dungeonState.value.inCombat) break
       // 检查战斗是否结束
       if (result.state === 'victory') {
         handleVictory()
@@ -541,6 +614,7 @@
     message.success(`击败了第 ${dungeonState.value.floor} 层的敌人！`)
     // 更新统计数据
     playerStore.dungeonTotalKills++
+    playerStore.recordDailyAction('dungeon')
     if (dungeonState.value.floor % 10 === 0) {
       playerStore.dungeonBossKills++
     } else if (dungeonState.value.floor % 5 === 0) {
@@ -550,16 +624,26 @@
       message.success(`获得了${playerStore.dungeonDifficulty}颗洗练石`)
     }
     // 更新最高层数记录
-    if (dungeonState.value.floor > playerStore.dungeonHighestFloor) {
-      playerStore.dungeonHighestFloor = dungeonState.value.floor
+    if (dungeonState.value.floor > floorData.value) {
+      playerStore[highestFloorKey.value] = dungeonState.value.floor
     }
     // 获得奖励
     const rewards = generateRewards()
+    const rewardText = []
     rewards.forEach(reward => {
-      playerStore.spiritStones += reward.amount
-      message.success(`获得了 ${reward.amount} 灵石！`)
+      if (reward.type === 'equipment') {
+        playerStore.gainItem(reward.item)
+        rewardText.push(reward.item.name)
+        message.success(`获得了${reward.item.qualityInfo.name}装备：${reward.item.name}`)
+      } else {
+        playerStore.spiritStones += reward.amount
+        rewardText.push(`${reward.amount} 灵石`)
+        message.success(`获得了 ${reward.amount} 灵石！`)
+      }
       playerStore.dungeonTotalRewards++
     })
+    runSummary.value = `已通过第 ${dungeonState.value.floor} 层，获得 ${rewardText.join('、')}。`
+    playerStore.saveData()
     // 进入下一层
     nextFloor()
   }
@@ -567,14 +651,35 @@
   // 生成奖励
   const generateRewards = () => {
     const rewards = []
+    const floor = dungeonState.value.floor
     // 灵石奖励
     const baseStones = 10 * dungeonState.value.floor * playerStore.dungeonDifficulty
     rewards.push({
       type: 'spirit_stones',
       amount: baseStones
     })
+    const isEliteFloor = floor % 5 === 0
+    const isBossFloor = floor % 10 === 0
+    const shouldDropEquipment = isEliteFloor || Math.random() < 0.28
+    if (shouldDropEquipment) {
+      const quality = getDungeonLootQuality(floor)
+      rewards.push({
+        type: 'equipment',
+        item: generateDungeonEquipment({
+          floor,
+          level: playerStore.level,
+          quality,
+          type: isBossFloor ? 'artifact' : 'weapon'
+        })
+      })
+    }
     return rewards
   }
+
+  onUnmounted(() => {
+    combatSession += 1
+    dungeonBuffs.clear(playerStore)
+  })
 
   const infoCliclk = type => {
     infoShow.value = true
@@ -605,13 +710,17 @@
   ]
 
   const handleUpdateValue = (value, option) => {
+    const safeValue = [1, 2, 5, 10, 100].includes(Number(value)) ? Number(value) : 1
+    playerStore.dungeonDifficulty = safeValue
     if (value === 100) {
       message.warning('警告! 通天难度挑战失败后会跌落境界')
     }
+    playerStore.saveData()
   }
   const refreshNumber = ref(3)
   // 刷新选择
   const handleRefreshOptions = () => {
+    if (refreshNumber.value <= 0 || !dungeonState.value.showingOptions) return
     showOptions()
     refreshNumber.value--
   }
@@ -622,8 +731,46 @@
     margin: 0 auto;
   }
 
+  .dungeon-progress {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--n-border-color);
+    border-radius: 8px;
+    background: var(--n-color-modal);
+  }
+
+  .dungeon-progress div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .dungeon-progress span {
+    color: var(--n-text-color-3);
+    font-size: 12px;
+  }
+
+  .dungeon-progress b {
+    overflow: hidden;
+    color: var(--n-text-color);
+    font-size: 14px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dungeon-hint {
+    margin: -2px 2px 0;
+    color: var(--n-text-color-3);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
   .option-cards {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
     padding: 16px;
     margin: 0 auto;
@@ -640,7 +787,8 @@
     display: flex;
     flex-direction: column;
     min-height: 100px;
-    width: 33%;
+    width: auto;
+    box-sizing: border-box;
   }
 
   .option-card:hover {
@@ -840,6 +988,42 @@
     }
     100% {
       transform: translateX(0) rotate(0deg);
+    }
+  }
+
+  @media (max-width: 680px) {
+    .dungeon-progress {
+      gap: 8px;
+      padding: 10px;
+    }
+
+    .dungeon-progress span {
+      font-size: 11px;
+    }
+
+    .dungeon-progress b {
+      font-size: 12px;
+    }
+
+    .option-cards {
+      grid-template-columns: 1fr;
+      padding: 10px 0;
+    }
+
+    .option-card {
+      min-height: 90px;
+    }
+
+    .combat-scene {
+      gap: 12px;
+      padding: 12px 8px;
+    }
+
+    .character-name {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
   }
 </style>

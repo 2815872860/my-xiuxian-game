@@ -29,7 +29,7 @@
                     <n-button
                       type="primary"
                       @click="exploreLocation(location)"
-                      :disabled="playerStore.spirit < location.spiritCost || isAutoExploring"
+                      :disabled="playerStore.spirit < location.spiritCost || isAutoExploring || isExplorationPending"
                     >
                       探索
                     </n-button>
@@ -76,7 +76,7 @@
 </template>
 
 <script setup>
-  import { ref } from 'vue'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { usePlayerStore } from '../stores/player'
   import { CompassOutline } from '@vicons/ionicons5'
   import { getRealmName } from '../plugins/realm'
@@ -93,30 +93,74 @@
   const isAutoExploring = ref(false) // 是否有地点正在自动探索
   const autoExploringLocationId = ref(null) // 正在自动探索的地点ID
   const explorationWorker = ref(null)
+  const isExplorationPending = ref(false)
+  let explorationPendingTimer = null
+  let workerRestartTimer = null
+
+  const clearExplorationPending = () => {
+    if (explorationPendingTimer) {
+      clearTimeout(explorationPendingTimer)
+      explorationPendingTimer = null
+    }
+    isExplorationPending.value = false
+  }
 
   // 初始化 Web Worker
   const initWorker = () => {
-    explorationWorker.value = new Worker(new URL('../workers/exploration.js', import.meta.url), { type: 'module' })
+    if (explorationWorker.value) return
+    try {
+      explorationWorker.value = new Worker(new URL('../workers/exploration.js', import.meta.url), { type: 'module' })
+    } catch (error) {
+      console.error('创建探索 Worker 失败:', error)
+      explorationWorker.value = null
+      showMessage('error', '探索模块暂时失效，请刷新页面重试')
+      return
+    }
     explorationWorker.value.onmessage = ({ data }) => {
       if (data.type === 'exploration_result') {
         handleExplorationResult(data)
       } else if (data.type === 'error') {
+        clearExplorationPending()
         showMessage('error', data.message)
       }
+    }
+    explorationWorker.value.onerror = error => {
+      console.error('探索 Worker 异常:', error)
+      clearExplorationPending()
+      showMessage('error', '探索模块暂时失效，请重试')
+      explorationWorker.value?.terminate()
+      explorationWorker.value = null
+      if (isAutoExploring.value) stopAutoExploration({ id: autoExploringLocationId.value })
+      clearTimeout(workerRestartTimer)
+      workerRestartTimer = setTimeout(() => {
+        workerRestartTimer = null
+        if (!explorationWorker.value) initWorker()
+      }, 300)
     }
   }
 
   // 处理探索结果
   const handleExplorationResult = result => {
-    playerStore.spirit -= result.spiritCost
+    clearExplorationPending()
+    const spiritCost = Number(result?.spiritCost)
+    const location = availableLocations.value.find(loc => loc.id === result?.locationId)
+    if (!location || !Number.isFinite(spiritCost) || spiritCost !== Number(location.spiritCost) || spiritCost < 0) {
+      showMessage('error', '探索结果无效，本次探索已取消')
+      return
+    }
+    if (playerStore.spirit < spiritCost) {
+      showMessage('error', '当前灵力不足，本次探索已取消')
+      return
+    }
+    playerStore.spirit = Math.max(0, playerStore.spirit - spiritCost)
     playerStore.explorationCount++
+    playerStore.recordDailyAction('explore')
 
     if (result.eventTriggered) {
       if (triggerRandomEvent(playerStore, showMessage)) {
         showMessage('info', '你的福缘不错，触发了一个特殊事件！')
       }
     } else {
-      const location = availableLocations.value.find(loc => loc.spiritCost === result.spiritCost)
       if (location && Array.isArray(location.rewards)) {
         const reward = getRandomReward(location.rewards)
         if (reward) {
@@ -135,15 +179,31 @@
 
   // 探索指定地点
   const exploreLocation = location => {
+    if (isExplorationPending.value) return
     if (playerStore.spirit < location.spiritCost) {
       showMessage('error', '灵力不足！')
       return
     }
-    explorationWorker.value.postMessage({
-      type: 'explore',
-      playerData: { luck: playerStore.luck },
-      location
-    })
+    if (!explorationWorker.value) {
+      showMessage('error', '探索模块尚未准备好，请稍后再试')
+      return
+    }
+    isExplorationPending.value = true
+    try {
+      explorationWorker.value.postMessage({
+        type: 'explore',
+        playerData: { luck: playerStore.luck },
+        location
+      })
+      explorationPendingTimer = setTimeout(() => {
+        clearExplorationPending()
+        showMessage('error', '探索计算超时，本次探索未扣除灵力')
+      }, 10000)
+    } catch (error) {
+      console.error('发送探索请求失败:', error)
+      clearExplorationPending()
+      showMessage('error', '探索模块暂时失效，请稍后重试')
+    }
   }
 
   // 组件挂载时初始化 Worker
@@ -153,6 +213,9 @@
 
   // 组件卸载时清理 Worker 和定时器
   onUnmounted(() => {
+    clearExplorationPending()
+    clearTimeout(workerRestartTimer)
+    workerRestartTimer = null
     if (explorationWorker.value) {
       explorationWorker.value.terminate()
     }
@@ -178,6 +241,7 @@
     autoExploringLocationId.value = location.id
     exploringLocations.value[location.id] = true
     explorationTimers.value[location.id] = setInterval(() => {
+      if (isExplorationPending.value) return
       if (playerStore.spirit >= location.spiritCost) {
         exploreLocation(location)
       } else {

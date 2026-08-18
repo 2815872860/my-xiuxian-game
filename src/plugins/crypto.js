@@ -26,6 +26,10 @@ export const decryptData = encryptedData => {
 
 // 数据校验
 export const validateData = data => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    console.error('数据验证失败: 存档格式无效')
+    return false
+  }
   // 检查必要的数据字段
   const requiredFields = ['name', 'level', 'realm', 'cultivation', 'maxCultivation', 'spirit', 'baseAttributes']
 
@@ -37,7 +41,17 @@ export const validateData = data => {
   }
 
   // 检查数值的合理性
-  if (data.level < 1 || data.cultivation < 0 || data.spirit < 0) {
+  const numericFields = ['level', 'cultivation', 'maxCultivation', 'spirit']
+  if (
+    numericFields.some(field => !Number.isFinite(Number(data[field]))) ||
+    Number(data.level) < 1 ||
+    Number(data.maxCultivation) <= 0 ||
+    Number(data.cultivation) < 0 ||
+    Number(data.spirit) < 0 ||
+    !data.baseAttributes ||
+    typeof data.baseAttributes !== 'object' ||
+    Array.isArray(data.baseAttributes)
+  ) {
     console.error('数据验证失败: 数值异常')
     return false
   }

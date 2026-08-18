@@ -89,7 +89,9 @@ const realms = [
 
 // 获取境界名称
 export const getRealmName = level => {
-  return realms[level - 1]
+  const normalizedLevel = Number.isFinite(Number(level)) ? Math.floor(Number(level)) : 1
+  const safeIndex = Math.min(Math.max(normalizedLevel, 1), realms.length) - 1
+  return realms[safeIndex] || realms[0]
 }
 
 export const getRealmLength = () => {

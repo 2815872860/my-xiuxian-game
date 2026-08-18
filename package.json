@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --open --port 2025",
     "build": "vite build",
-    "preview": "vite preview --open --port 2026"
+    "preview": "vite preview --open --port 2026",
+    "account": "node server/index.mjs",
+    "start": "node server/index.mjs"
   },
   "dependencies": {
     "@ant-design/icons-vue": "^7.0.1",

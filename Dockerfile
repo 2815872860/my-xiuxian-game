@@ -1,16 +1,15 @@
-FROM node:latest
-
-RUN mkdir -p /workspace
+FROM node:20-alpine
 
 WORKDIR /workspace
 
-RUN npm config set registry https://registry.npmmirror.com
+COPY package.json pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
 
-RUN cd /workspace
+COPY . .
+RUN pnpm run build
 
-RUN git clone https://github.com/KoWming/vue-idle-xiuxian . && \
-    npm install -g pnpm && \
-    pnpm install && \
-    pnpm run build
+ENV HOST=0.0.0.0
+ENV PORT=8080
+EXPOSE 8080
 
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["node", "server/index.mjs"]

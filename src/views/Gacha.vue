@@ -9,7 +9,7 @@
       <n-card :bordered="false">
         <div class="gacha-container">
           <div class="gacha-type-selector">
-            <n-radio-group v-model:value="gachaType" name="gachaType">
+            <n-radio-group v-model:value="gachaType" name="gachaType" :disabled="isDrawing">
               <n-radio-button value="all">综合池</n-radio-button>
               <n-radio-button value="equipment">装备池</n-radio-button>
               <n-radio-button value="pet">灵宠池</n-radio-button>
@@ -416,7 +416,7 @@
 
 <script setup>
   import { usePlayerStore } from '../stores/player'
-  import { ref } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { useMessage } from 'naive-ui'
   import { Help, HeartOutline, SettingsOutline } from '@vicons/ionicons5'
 
@@ -541,11 +541,11 @@
           stat
         )
       ) {
-        baseStats[stat] = Math.round(value * 1) / 100 // 保留两位小数
+        baseStats[stat] = Math.round(value * 100) / 100 // 保留两位小数
       } else {
         baseStats[stat] = Math.round(value)
       }
-    })
+        })
     return {
       id: Date.now() + Math.random(),
       name: generateEquipmentName(type, quality),
@@ -804,7 +804,7 @@
   // 根据心愿单调整装备概率
   const getAdjustedEquipProbabilities = () => {
     const baseProbs = { ...getEquipProbabilities }
-    if (playerStore.wishlistEnabled && playerStore.selectedWishEquipQuality) {
+    if (playerStore.wishlistEnabled && playerStore.selectedWishEquipQuality && baseProbs[playerStore.selectedWishEquipQuality]) {
       const quality = playerStore.selectedWishEquipQuality
       const bonus = wishlistBonus.equipment(quality)
       // 增加选中品质的概率
@@ -830,7 +830,7 @@
       baseProbs[rarity] = config.probability
     })
 
-    if (playerStore.wishlistEnabled && playerStore.selectedWishPetRarity) {
+    if (playerStore.wishlistEnabled && playerStore.selectedWishPetRarity && baseProbs[playerStore.selectedWishPetRarity]) {
       const rarity = playerStore.selectedWishPetRarity
       const bonus = wishlistBonus.pet(rarity)
       // 增加选中品质的概率
@@ -907,7 +907,8 @@
 
   // 综合池概率配置
   const getAllPoolProbabilities = () => {
-    const equipProbs = getEquipProbabilities
+    const equipProbs = getAdjustedEquipProbabilities()
+    const petProbs = getAdjustedPetProbabilities()
     const totalEquipProb = 0.5 // 装备占50%概率
     const totalPetProb = 0.5 // 灵宠占50%概率
     // 调整装备概率
@@ -917,8 +918,8 @@
     })
     // 调整灵宠概率
     const adjustedPetProbs = {}
-    Object.entries(petRarities).forEach(([rarity, config]) => {
-      adjustedPetProbs[rarity] = config.probability * totalPetProb
+    Object.entries(petProbs).forEach(([rarity, probability]) => {
+      adjustedPetProbs[rarity] = probability * totalPetProb
     })
     return {
       equipment: adjustedEquipProbs,
@@ -933,10 +934,11 @@
     // 先决定是抽装备还是灵宠
     if (random < 0.5) {
       // 抽装备
+      const poolRoll = random * 2
       let accumulatedProb = 0
       for (const [quality, probability] of Object.entries(probs.equipment)) {
         accumulatedProb += probability
-        if (random * 2 <= accumulatedProb) {
+        if (poolRoll <= accumulatedProb) {
           const types = Object.keys(equipmentTypes)
           const type = types[Math.floor(Math.random() * types.length)]
           return {
@@ -956,10 +958,11 @@
       }
     } else {
       // 抽灵宠
+      const poolRoll = (random - 0.5) * 2
       let accumulatedProb = 0
-      for (const [rarity, config] of Object.entries(petRarities)) {
-        accumulatedProb += config.probability
-        if ((random - 0.5) * 2 <= accumulatedProb) {
+      for (const [rarity, probability] of Object.entries(probs.pet)) {
+        accumulatedProb += probability
+        if (poolRoll <= accumulatedProb) {
           const pool = petPool[rarity]
           const pet = pool[Math.floor(Math.random() * pool.length)]
           const upgradeItemCount = {
@@ -1019,19 +1022,26 @@
   const performGacha = async times => {
     gachaNumber.value = times
     showResult.value = false
+    autoSoldCount.value = 0
+    autoReleasedCount.value = 0
+    autoSoldIncome.value = 0
     const cost = playerStore.wishlistEnabled ? times * 200 : times * 100
     if (playerStore.spiritStones < cost) {
       message.error('灵石不足！')
       return
     }
-    if (gachaType.value != 'equipment' && playerStore.items.filter(item => item.type === 'pet').length >= 100) {
-      message.error('灵宠背包已满，请先处理一些灵宠')
-      return
-    }
     if (isDrawing.value) return
+    const previousState = {
+      spiritStones: playerStore.spiritStones,
+      petEssence: playerStore.petEssence,
+      reinforceStones: playerStore.reinforceStones,
+      items: playerStore.items.slice()
+    }
+    const drawType = gachaType.value
     isDrawing.value = true
-    // 扣除灵石
-    playerStore.spiritStones -= cost
+    try {
+      // 扣除灵石
+      playerStore.spiritStones -= cost
     // 开始抽卡动画
     isShaking.value = true
     await new Promise(resolve => setTimeout(resolve, 1000))
@@ -1042,12 +1052,28 @@
     const results = Array(times)
       .fill()
       .map(() => {
-        if (gachaType.value === 'all') {
+        if (drawType === 'all') {
           return drawFromAllPool()
         } else {
-          return gachaType.value === 'equipment' ? drawSingleEquip() : drawSinglePet()
+          return drawType === 'equipment' ? drawSingleEquip() : drawSinglePet()
         }
-      })
+        })
+        .map(item => ({ ...item, id: item.id || `${Date.now()}-${Math.random()}` }))
+      if (results.some(item => !item || !item.type)) {
+        throw new Error('抽卡结果无效')
+      }
+      const retainedPetCount = results.filter(
+        item =>
+          item.type === 'pet' &&
+          !(
+            playerStore.autoReleaseRarities.length > 0 &&
+            (playerStore.autoReleaseRarities.includes('all') || playerStore.autoReleaseRarities.includes(item.rarity))
+          )
+      ).length
+      const currentPetCount = playerStore.items.filter(item => item.type === 'pet').length
+      if (currentPetCount + retainedPetCount > 100) {
+        throw new Error('灵宠背包容量不足')
+      }
     // 添加到背包
     results.forEach(item => {
       if (item.type === 'pet') {
@@ -1086,10 +1112,7 @@
           return // 不添加到背包
         }
       }
-      playerStore.items.push({
-        ...item,
-        id: Date.now() + Math.random()
-      })
+      playerStore.items.push(item)
     })
     // 显示自动处理结果通知
     if (autoSoldCount.value) {
@@ -1099,19 +1122,29 @@
       message.success(`自动放生了 ${autoReleasedCount.value} 只灵宠`)
     }
     // 保存数据
-    playerStore.saveData()
+    await playerStore.saveData()
     // 显示结果
     gachaResult.value = results
     currentPage.value = 1
     selectedRarity.value = null
     selectedQuality.value = null
-    isOpening.value = false
     showResult.value = true
-    isDrawing.value = false
-    // 清空自动处理计数器
-    autoSoldCount.value = 0
-    autoReleasedCount.value = 0
-    autoSoldIncome.value = 0
+    } catch (error) {
+      playerStore.spiritStones = previousState.spiritStones
+      playerStore.petEssence = previousState.petEssence
+      playerStore.reinforceStones = previousState.reinforceStones
+      playerStore.items = previousState.items
+      showResult.value = false
+      console.error('抽卡失败:', error)
+      message.error('抽卡失败，灵石和背包状态已恢复')
+    } finally {
+      isShaking.value = false
+      isOpening.value = false
+      isDrawing.value = false
+      autoSoldCount.value = 0
+      autoReleasedCount.value = 0
+      autoSoldIncome.value = 0
+    }
   }
 
   // 筛选结果
@@ -1119,10 +1152,10 @@
     if (!gachaResult.value) return []
     return gachaResult.value.filter(item => {
       if (item.type === 'pet') {
-        return !selectedRarity.value || item.rarity === selectedRarity.value
+        return !selectedRarity.value || selectedRarity.value === 'all' || item.rarity === selectedRarity.value
       }
       // 装备筛选
-      return !selectedQuality.value || item.quality === selectedQuality.value
+      return !selectedQuality.value || selectedQuality.value === 'all' || item.quality === selectedQuality.value
     })
   })
 

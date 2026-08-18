@@ -150,6 +150,36 @@ const CARD_BRIEFS = {
 const RACE_BY_ID = Object.fromEntries(RACES.map(race => [race.id, race]))
 const GENDER_BY_ID = Object.fromEntries(GENDERS.map(gender => [gender.id, gender]))
 
+const CARD_PRESENTATION = {
+  'H-M-01': ['青石少年', '凡骨入世，先学会握稳手里的旧剑'],
+  'H-M-02': ['沈氏少主', '家印在身，族谱之外另有一条路'],
+  'H-M-03': ['倦旅散修', '带着旧剑和未说完的故事继续远行'],
+  'H-F-01': ['雨巷药师', '在河岸灯火里守住一篮草药'],
+  'H-F-02': ['云岑外门', '试剑台上的风，先替你记住锋芒'],
+  'H-F-03': ['月白世家女', '家门礼法之外，仍要亲自问一次长生'],
+  'H-X-01': ['提灯问路', '一盏纸灯照见阴阳之间的窄路'],
+  'H-X-02': ['墨扇藏锋', '字里有山河，扇后也藏着一线杀机'],
+  'H-X-03': ['行符客', '袖中符纸未干，脚下的路已经先动了'],
+  'I-M-01': ['云上仙门', '银发清气，像从天门外回望人间'],
+  'I-M-02': ['天阙守卫', '执剑守云关，也守住自己的来处'],
+  'I-M-03': ['浮光旅人', '温和的笑意下，藏着不肯停下的剑'],
+  'I-F-01': ['莲灯仙子', '一盏莲灯照水，也照见灵脉初醒'],
+  'I-F-02': ['青玉笛音', '笛声穿过云岑，唤来一缕清明灵炁'],
+  'I-F-03': ['星坛司命', '月冠之下，正在聆听群星落子的声音'],
+  'I-X-01': ['寒灯问道', '黑白长袍与空灯相伴，静看人间风雪'],
+  'I-X-02': ['云简藏书人', '卷册浮空，旧日答案尚未写到最后一页'],
+  'I-X-03': ['梦行月海', '从梦里醒来时，手中仍握着星纹玉符'],
+  'D-M-01': ['黑狼化形', '把兽性藏进人身，先学会在人间行走'],
+  'D-M-02': ['银狐骨笛', '笛声很轻，月下的杀意却从不迟到'],
+  'D-M-03': ['青鹿守林', '木灵符在掌心发芽，旧林记得你的名字'],
+  'D-F-01': ['绯尾灵狐', '铃声一响，山林里便多了一道红色的风'],
+  'D-F-02': ['月铃灵猫', '冷静看过每一条退路，再决定是否出爪'],
+  'D-F-03': ['紫鳞蛇裔', '金色瞳孔里，照见血脉尚未揭开的真形'],
+  'D-X-01': ['鹿角玄行者', '人身与妖相之间，选择属于自己的平衡'],
+  'D-X-02': ['赤衣游妖', '笑着走过旧路，也笑着面对追兵'],
+  'D-X-03': ['月白妖梦', '梦里有森林，醒来后仍听见水声']
+}
+
 const basePrompt = `Create an original premium Chinese fantasy cultivation character card illustration for a fictional web and mobile game, portrait 2:3 composition, adult character, full body or three-quarter body centered as the clear visual focus. Combine contemporary Chinese ink-wash atmosphere with polished modern mobile RPG illustration quality, gongbi-level facial anatomy, expressive eyes, believable hands, layered silk and linen fabric construction, embroidered hems, jade, lacquer, carved wood, talisman paper, subtle metal ornaments, readable silhouette, restrained mineral pigments, charcoal ink shadows, controlled brush edges, translucent mist, delicate ink diffusion around the subject, distant mountains and painted cloud layers, faint calligraphy brush texture without readable text, soft rim light, cinematic depth, quiet negative space near the lower third for later interface overlay. Original design only, no copied game character, no real brand, no logo, no watermark, no random text, no modern objects, no explicit nudity, no sexual act, no fetish framing, no malformed anatomy, no extra fingers, no cropped face, no plastic CGI, no generic blue gradient.`
 
 const cardDefinitions = Object.entries(CARD_BRIEFS).map(([id, visualBrief]) => {
@@ -162,6 +192,8 @@ const cardDefinitions = Object.entries(CARD_BRIEFS).map(([id, visualBrief]) => {
     genderId,
     accent,
     visualBrief,
+    displayName: CARD_PRESENTATION[id]?.[0] || id,
+    shortDescription: CARD_PRESENTATION[id]?.[1] || '一张等待你亲自写下命运的原创命相。',
     prompt: `${basePrompt}\nSpecific character brief: ${visualBrief}. Use a cohesive original costume, facial identity, prop and silhouette; preserve clean composition and Chinese ink diffusion.`,
     label: `${RACE_BY_ID[raceId].name} · ${GENDER_BY_ID[genderId].name}`
   }

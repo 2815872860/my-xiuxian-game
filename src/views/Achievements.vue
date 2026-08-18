@@ -78,7 +78,7 @@
   }))
 
   // 获取成就类别名称
-  const getCategoryName = category => {
+  function getCategoryName(category) {
     const categoryNames = {
       equipment: '装备成就',
       dungeon_explore: '秘境探索',
@@ -110,6 +110,8 @@
       if (achievement.reward.alchemyRate)
         rewardText += `\n${(achievement.reward.alchemyRate * 100 - 100).toFixed(0)}% 炼丹成功率提升`
       if (achievement.reward.luck) rewardText += `\n${(achievement.reward.luck * 100 - 100).toFixed(0)}% 幸运提升`
+      if (achievement.reward.damage) rewardText += `\n攻击 +${achievement.reward.damage}`
+      if (achievement.reward.defense) rewardText += `\n防御 +${achievement.reward.defense}`
     }
     message.info(`${achievement.name}\n\n${achievement.description}\n\n${rewardText}`, { duration: 5000 })
   }

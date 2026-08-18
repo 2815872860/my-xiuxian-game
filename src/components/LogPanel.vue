@@ -45,7 +45,13 @@
 
   // 初始化Web Worker
   onMounted(() => {
-    logWorker.value = new Worker(new URL('../workers/log.js', import.meta.url), { type: 'module' })
+    try {
+      logWorker.value = new Worker(new URL('../workers/log.js', import.meta.url), { type: 'module' })
+    } catch (error) {
+      console.error('创建日志 Worker 失败:', error)
+      logWorker.value = null
+      return
+    }
 
     // 监听Worker消息
     logWorker.value.onmessage = e => {
@@ -59,6 +65,11 @@
         })
       }
     }
+    logWorker.value.onerror = error => {
+      console.error('日志 Worker 异常:', error)
+      logWorker.value?.terminate()
+      logWorker.value = null
+    }
   })
 
   // 组件卸载时清理Worker
@@ -71,17 +82,25 @@
   // 添加日志的方法
   const addLog = (type, content) => {
     if (logWorker.value) {
-      logWorker.value.postMessage({
-        type: 'ADD_LOG',
-        data: { type, content }
-      })
+      try {
+        logWorker.value.postMessage({
+          type: 'ADD_LOG',
+          data: { type, content }
+        })
+      } catch (error) {
+        console.error('发送日志失败:', error)
+      }
     }
   }
 
   // 添加清空日志方法
   const clearLogs = () => {
     if (logWorker.value) {
-      logWorker.value.postMessage({ type: 'CLEAR_LOGS' })
+      try {
+        logWorker.value.postMessage({ type: 'CLEAR_LOGS' })
+      } catch (error) {
+        console.error('清空日志失败:', error)
+      }
     }
   }
 

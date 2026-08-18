@@ -17,33 +17,33 @@ const CombatType = {
 class CombatStats {
   constructor(base = {}) {
     // 基础属性
-    this.health = base.health || 100
-    this.maxHealth = base.maxHealth || 100
-    this.damage = base.damage || 10
-    this.defense = base.defense || 5
-    this.speed = base.speed || 10
+    this.health = base.health ?? 100
+    this.maxHealth = base.maxHealth ?? 100
+    this.damage = base.damage ?? 10
+    this.defense = base.defense ?? 5
+    this.speed = base.speed ?? 10
     // 战斗属性（百分比）
-    this.critRate = base.critRate || 0.05 // 暴击率
-    this.comboRate = base.comboRate || 0 // 连击率
-    this.counterRate = base.counterRate || 0 // 反击率
-    this.stunRate = base.stunRate || 0 // 眩晕率
-    this.dodgeRate = base.dodgeRate || 0.05 // 闪避率
-    this.vampireRate = base.vampireRate || 0 // 吸血率
+    this.critRate = base.critRate ?? 0.05 // 暴击率
+    this.comboRate = base.comboRate ?? 0 // 连击率
+    this.counterRate = base.counterRate ?? 0 // 反击率
+    this.stunRate = base.stunRate ?? 0 // 眩晕率
+    this.dodgeRate = base.dodgeRate ?? 0.05 // 闪避率
+    this.vampireRate = base.vampireRate ?? 0 // 吸血率
     // 战斗抗性（百分比）
-    this.critResist = base.critResist || 0 // 抗暴击
-    this.comboResist = base.comboResist || 0 // 抗连击
-    this.counterResist = base.counterResist || 0 // 抗反击
-    this.stunResist = base.stunResist || 0 // 抗眩晕
-    this.dodgeResist = base.dodgeResist || 0 // 抗闪避
-    this.vampireResist = base.vampireResist || 0 // 抗吸血
+    this.critResist = base.critResist ?? 0 // 抗暴击
+    this.comboResist = base.comboResist ?? 0 // 抗连击
+    this.counterResist = base.counterResist ?? 0 // 抗反击
+    this.stunResist = base.stunResist ?? 0 // 抗眩晕
+    this.dodgeResist = base.dodgeResist ?? 0 // 抗闪避
+    this.vampireResist = base.vampireResist ?? 0 // 抗吸血
     // 特殊属性（百分比）
-    this.healBoost = base.healBoost || 0 // 强化治疗
-    this.critDamageBoost = base.critDamageBoost || 0.5 // 强化爆伤
-    this.critDamageReduce = base.critDamageReduce || 0 // 弱化爆伤
-    this.finalDamageBoost = base.finalDamageBoost || 0 // 最终增伤
-    this.finalDamageReduce = base.finalDamageReduce || 0 // 最终减伤
-    this.combatBoost = base.combatBoost || 0 // 战斗属性提升
-    this.resistanceBoost = base.resistanceBoost || 0 // 战斗抗性提升
+    this.healBoost = base.healBoost ?? 0 // 强化治疗
+    this.critDamageBoost = base.critDamageBoost ?? 0.5 // 强化爆伤
+    this.critDamageReduce = base.critDamageReduce ?? 0 // 弱化爆伤
+    this.finalDamageBoost = base.finalDamageBoost ?? 0 // 最终增伤
+    this.finalDamageReduce = base.finalDamageReduce ?? 0 // 最终减伤
+    this.combatBoost = base.combatBoost ?? 0 // 战斗属性提升
+    this.resistanceBoost = base.resistanceBoost ?? 0 // 战斗抗性提升
   }
   // 计算最终伤害
   calculateDamage(target) {
@@ -121,7 +121,7 @@ class CombatEntity {
     this.effects = []
   }
   // 受到伤害
-  takeDamage(amount, source) {
+  takeDamage(amount, source, attackResult = null) {
     // 计算实际闪避率（考虑攻击方的抗闪避）
     const actualDodgeRate = Math.max(0, Math.min(1, this.stats.dodgeRate - (source ? source.stats.dodgeResist : 0)))
     // 闪避判定
@@ -129,7 +129,7 @@ class CombatEntity {
       return { dodged: true, damage: 0 }
     }
     // 计算实际伤害
-    const reducedDamage = this.stats.calculateDamageReduction(amount)
+    const reducedDamage = this.stats.calculateDamageReduction(amount, attackResult)
     this.currentHealth = Math.max(0, this.currentHealth - reducedDamage)
     // 计算反击（考虑攻击方的抗反击）
     let isCounter = false
@@ -203,7 +203,7 @@ class CombatManager {
 
     // 第一回合攻击
     const firstAttack = firstAttacker.stats.calculateDamage(secondAttacker)
-    const firstResult = secondAttacker.takeDamage(firstAttack.damage, firstAttacker)
+    const firstResult = secondAttacker.takeDamage(firstAttack.damage, firstAttacker, firstAttack)
 
     // 记录第一回合攻击日志
     let firstAttackLog = `${firstAttacker.name}率先发起攻击`
@@ -240,7 +240,7 @@ class CombatManager {
     // 第二回合攻击（如果没有被眩晕）
     if (!firstAttack.isStun) {
       const secondAttack = secondAttacker.stats.calculateDamage(firstAttacker)
-      const secondResult = firstAttacker.takeDamage(secondAttack.damage, secondAttacker)
+      const secondResult = firstAttacker.takeDamage(secondAttack.damage, secondAttacker, secondAttack)
 
       // 记录第二回合攻击日志
       // 如果是反击，先添加反击触发的日志

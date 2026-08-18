@@ -15,6 +15,21 @@ const equipmentTypes = {
 }
 
 // 成就系统配置
+const getInventoryEquipment = player =>
+  (Array.isArray(player?.items) ? player.items : []).filter(item =>
+    item && Object.prototype.hasOwnProperty.call(equipmentTypes, item.type)
+  )
+
+const getEquippedEquipment = player =>
+  Object.values(player?.equippedArtifacts && typeof player.equippedArtifacts === 'object'
+    ? player.equippedArtifacts
+    : {}).filter(Boolean)
+
+const getAllEquipment = player => [
+  ...getEquippedEquipment(player),
+  ...getInventoryEquipment(player)
+]
+
 export const achievements = {
   // 装备成就
   equipment: [
@@ -23,8 +38,8 @@ export const achievements = {
       name: '初获装备',
       description: '获得第一件装备',
       condition: player => {
-        const equippedCount = Object.values(player.equippedArtifacts).filter(e => e !== null).length
-        const inventoryCount = player.equipment?.length || 0
+        const equippedCount = getEquippedEquipment(player).length
+        const inventoryCount = getInventoryEquipment(player).length
         return equippedCount + inventoryCount >= 1
       },
       reward: { spirit: 200 }
@@ -34,8 +49,8 @@ export const achievements = {
       name: '装备收藏',
       description: '拥有10件装备',
       condition: player => {
-        const equippedCount = Object.values(player.equippedArtifacts).filter(e => e !== null).length
-        const inventoryCount = player.equipment?.length || 0
+        const equippedCount = getEquippedEquipment(player).length
+        const inventoryCount = getInventoryEquipment(player).length
         return equippedCount + inventoryCount >= 10
       },
       reward: { spirit: 1000 }
@@ -45,8 +60,8 @@ export const achievements = {
       name: '装备大师',
       description: '拥有一件极品品质装备',
       condition: player => {
-        const equippedLegendary = Object.values(player.equippedArtifacts).some(e => e?.quality === 'legendary')
-        const inventoryLegendary = player.equipment?.some(e => e.quality === 'legendary')
+        const equippedLegendary = getEquippedEquipment(player).some(e => e?.quality === 'legendary')
+        const inventoryLegendary = getInventoryEquipment(player).some(e => e.quality === 'legendary')
         return equippedLegendary || inventoryLegendary
       },
       reward: { spirit: 3000, damage: 1.2 }
@@ -56,8 +71,8 @@ export const achievements = {
       name: '炼器宗师',
       description: '强化任意装备到+10',
       condition: player => {
-        const equippedEnhanced = Object.values(player.equippedArtifacts).some(e => e?.enhanceLevel >= 10)
-        const inventoryEnhanced = player.equipment?.some(e => e.enhanceLevel >= 10)
+        const equippedEnhanced = getEquippedEquipment(player).some(e => e?.enhanceLevel >= 10)
+        const inventoryEnhanced = getInventoryEquipment(player).some(e => e.enhanceLevel >= 10)
         return equippedEnhanced || inventoryEnhanced
       },
       reward: { spirit: 5000, damage: 1.5 }
@@ -67,10 +82,7 @@ export const achievements = {
       name: '装备之王',
       description: '拥有一套完整的极品装备',
       condition: player => {
-        const allEquipment = [
-          ...Object.values(player.equippedArtifacts).filter(e => e !== null),
-          ...(player.equipment || [])
-        ]
+        const allEquipment = getAllEquipment(player)
         const legendaryTypes = new Set(allEquipment.filter(e => e.quality === 'legendary').map(e => e.type))
         return legendaryTypes.size >= 4
       },
@@ -81,8 +93,8 @@ export const achievements = {
       name: '炼器新秀',
       description: '初次强化装备',
       condition: player => {
-        const equippedEnhanced = Object.values(player.equippedArtifacts).some(e => e?.enhanceLevel > 0)
-        const inventoryEnhanced = player.equipment?.some(e => e.enhanceLevel > 0)
+        const equippedEnhanced = getEquippedEquipment(player).some(e => e?.enhanceLevel > 0)
+        const inventoryEnhanced = getInventoryEquipment(player).some(e => e.enhanceLevel > 0)
         return equippedEnhanced || inventoryEnhanced
       },
       reward: { spirit: 500 }
@@ -92,10 +104,7 @@ export const achievements = {
       name: '装备鉴赏家',
       description: '拥有20件不同部位的装备',
       condition: player => {
-        const allEquipment = [
-          ...Object.values(player.equippedArtifacts).filter(e => e !== null),
-          ...(player.equipment || [])
-        ]
+        const allEquipment = getAllEquipment(player)
         return new Set(allEquipment.map(e => e.type)).size >= 10
       },
       reward: { spirit: 2000 }
@@ -105,8 +114,8 @@ export const achievements = {
       name: '神装收集者',
       description: '拥有5件仙品装备',
       condition: player => {
-        const equippedMythic = Object.values(player.equippedArtifacts).filter(e => e?.quality === 'mythic').length
-        const inventoryMythic = (player.equipment || []).filter(e => e.quality === 'mythic').length
+        const equippedMythic = getEquippedEquipment(player).filter(e => e?.quality === 'mythic').length
+        const inventoryMythic = getInventoryEquipment(player).filter(e => e.quality === 'mythic').length
         return equippedMythic + inventoryMythic >= 5
       },
       reward: { spirit: 10000, damage: 1.5 }
@@ -116,8 +125,8 @@ export const achievements = {
       name: '强化大师',
       description: '将一件装备强化到+15',
       condition: player => {
-        const equippedEnhanced = Object.values(player.equippedArtifacts).some(e => e?.enhanceLevel >= 15)
-        const inventoryEnhanced = player.equipment?.some(e => e.enhanceLevel >= 15)
+        const equippedEnhanced = getEquippedEquipment(player).some(e => e?.enhanceLevel >= 15)
+        const inventoryEnhanced = getInventoryEquipment(player).some(e => e.enhanceLevel >= 15)
         return equippedEnhanced || inventoryEnhanced
       },
       reward: { spirit: 20000, damage: 2 }
@@ -127,10 +136,7 @@ export const achievements = {
       name: '全能装备师',
       description: '拥有每部位一件仙品装备',
       condition: player => {
-        const allEquipment = [
-          ...Object.values(player.equippedArtifacts).filter(e => e !== null),
-          ...(player.equipment || [])
-        ]
+        const allEquipment = getAllEquipment(player)
         const mythicTypes = new Set(allEquipment.filter(e => e.quality === 'mythic').map(e => e.type))
         return mythicTypes.size >= Object.keys(equipmentTypes).length
       },
@@ -225,7 +231,7 @@ export const achievements = {
       id: 'dungeon_combat_2',
       name: '战无不胜',
       description: '击杀50个普通敌人',
-      condition: player => player.dungeonStreakKills >= 50,
+      condition: player => player.dungeonTotalKills >= 50,
       reward: { spirit: 2000, defense: 1.1 }
     },
     {
@@ -570,7 +576,7 @@ export const achievements = {
       id: 'collection_9',
       name: '仙草收集者',
       description: '收集100株仙品灵草',
-      condition: player => player.herbs.filter(h => h.quality === 'mythic').length >= 100,
+      condition: player => player.herbs.filter(h => h.quality === 'legendary').length >= 100,
       reward: { spirit: 10000, herbRate: 1.5 }
     },
     {
@@ -763,6 +769,14 @@ export const checkAchievements = player => {
           if (achievement.reward.luck) {
             player.luck = (player.luck || 1) * achievement.reward.luck
           }
+          if (achievement.reward.damage) {
+            player.baseAttributes = player.baseAttributes || {}
+            player.baseAttributes.attack = (Number(player.baseAttributes.attack) || 0) + Number(achievement.reward.damage)
+          }
+          if (achievement.reward.defense) {
+            player.baseAttributes = player.baseAttributes || {}
+            player.baseAttributes.defense = (Number(player.baseAttributes.defense) || 0) + Number(achievement.reward.defense)
+          }
         }
         // 保存玩家数据
         player.saveData()
@@ -781,69 +795,122 @@ export const getAchievementProgress = (player, achievement) => {
       return 100
     }
     // 根据不同类型的成就计算进度
-    if (achievement.id.startsWith('dungeon_1')) {
+    if (achievement.id === 'dungeon_1') {
       return Math.min(100, ((player.dungeonTotalRuns || 0) / 1) * 100)
+    } else if (achievement.id.startsWith('dungeon_combat_')) {
+      const combatTargets = {
+        dungeon_combat_1: ['dungeonTotalKills', 10],
+        dungeon_combat_2: ['dungeonTotalKills', 50],
+        dungeon_combat_3: ['dungeonTotalKills', 100],
+        dungeon_combat_4: ['dungeonTotalKills', 500],
+        dungeon_combat_5: ['dungeonEliteKills', 50],
+        dungeon_combat_6: ['dungeonBossKills', 10],
+        dungeon_combat_7: ['dungeonBossKills', 50],
+        dungeon_combat_8: ['dungeonBossKills', 100],
+        dungeon_combat_9: ['dungeonTotalKills', 1000],
+        dungeon_combat_10: ['dungeonTotalKills', 10000]
+      }
+      const [field, target] = combatTargets[achievement.id] || ['dungeonTotalKills', 100]
+      return Math.min(100, ((player[field] || 0) / target) * 100)
     } else if (achievement.id.startsWith('dungeon_')) {
       const matches = achievement.description.match(/\d+/)
       const targetFloor = matches ? parseInt(matches[0]) : 100
       return Math.min(100, ((player.dungeonHighestFloor || 0) / targetFloor) * 100)
-    } else if (achievement.id.startsWith('dungeon_combat_')) {
-      if (achievement.id === 'dungeon_combat_3') {
-        return Math.min(100, ((player.dungeonEliteKills || 0) / 50) * 100)
-      } else if (achievement.id === 'dungeon_combat_4') {
-        return Math.min(100, ((player.dungeonBossKills || 0) / 10) * 100)
-      } else {
-        const matches = achievement.description.match(/\d+/)
-        const targetKills = matches ? parseInt(matches[0]) : 100
-        return Math.min(100, ((player.dungeonTotalKills || 0) / targetKills) * 100)
-      }
     } else if (achievement.id.startsWith('cultivation_')) {
-      const matches = achievement.condition.toString().match(/(\d+)/)
-      const targetTime = matches ? parseInt(matches[0]) : 3600
+      const cultivationTargets = {
+        cultivation_1: 1,
+        cultivation_2: 1800,
+        cultivation_3: 3600,
+        cultivation_4: 43200,
+        cultivation_5: 172800,
+        cultivation_6: 86400,
+        cultivation_7: 604800,
+        cultivation_8: 1296000,
+        cultivation_9: 2592000,
+        cultivation_10: 8640000
+      }
+      const targetTime = cultivationTargets[achievement.id] || 3600
       return Math.min(100, ((player.totalCultivationTime || 0) / targetTime) * 100)
     } else if (achievement.id.startsWith('breakthrough_')) {
-      if (achievement.id === 'breakthrough_5') {
-        return Math.min(100, ((player.level || 0) / 37) * 100)
-      } else {
-        const matches = achievement.description.match(/\d+/)
-        const targetCount = matches ? parseInt(matches[0]) : 10
-        return Math.min(100, ((player.breakthroughCount || 0) / targetCount) * 100)
+      const breakthroughTargets = {
+        breakthrough_1: ['breakthroughCount', 1],
+        breakthrough_2: ['breakthroughCount', 5],
+        breakthrough_3: ['breakthroughCount', 10],
+        breakthrough_4: ['breakthroughCount', 50],
+        breakthrough_5: ['breakthroughCount', 100],
+        breakthrough_6: ['level', 37],
+        breakthrough_7: ['level', 46],
+        breakthrough_8: ['level', 64],
+        breakthrough_9: ['level', 82],
+        breakthrough_10: ['level', 126]
       }
+      const [field, targetCount] = breakthroughTargets[achievement.id] || ['breakthroughCount', 10]
+      return Math.min(100, ((player[field] || 0) / targetCount) * 100)
     } else if (achievement.id.startsWith('exploration_')) {
-      if (achievement.id === 'exploration_4') {
-        return Math.min(100, ((player.itemsFound || 0) / 100) * 100)
-      } else if (achievement.id === 'exploration_5') {
-        return Math.min(100, ((player.eventTriggered || 0) / 100) * 100)
-      } else {
-        const matches = achievement.description.match(/\d+/)
-        const targetCount = matches ? parseInt(matches[0]) : 100
-        return Math.min(100, ((player.explorationCount || 0) / targetCount) * 100)
+      const explorationTargets = {
+        exploration_1: ['explorationCount', 1],
+        exploration_2: ['explorationCount', 10],
+        exploration_3: ['explorationCount', 50],
+        exploration_4: ['explorationCount', 100],
+        exploration_5: ['explorationCount', 200],
+        exploration_6: ['explorationCount', 500],
+        exploration_7: ['explorationCount', 1000],
+        exploration_8: ['itemsFound', 100],
+        exploration_9: ['eventTriggered', 100],
+        exploration_10: ['eventTriggered', 500]
       }
+      const [field, targetCount] = explorationTargets[achievement.id] || ['explorationCount', 100]
+      return Math.min(100, ((player[field] || 0) / targetCount) * 100)
     } else if (achievement.id.startsWith('collection_')) {
-      if (achievement.id === 'collection_1') {
-        return (player.herbs || []).length >= 1 ? 100 : 0
-      } else if (achievement.id === 'collection_2' || achievement.id === 'collection_3') {
-        const matches = achievement.description.match(/\d+/)
-        const targetTypes = matches ? parseInt(matches[0]) : 10
-        const uniqueHerbs = new Set((player.herbs || []).map(h => h.id)).size
-        return Math.min(100, (uniqueHerbs / targetTypes) * 100)
-      } else if (achievement.id === 'collection_4') {
-        return (player.herbs || []).some(h => h.quality === 'legendary') ? 100 : 0
-      } else {
-        return Math.min(100, ((player.herbs || []).length / 100) * 100)
+      const herbs = Array.isArray(player.herbs) ? player.herbs : []
+      const uniqueHerbs = new Set(herbs.map(h => h.id)).size
+      const collectionValues = {
+        collection_1: herbs.length,
+        collection_2: uniqueHerbs,
+        collection_3: uniqueHerbs,
+        collection_4: herbs.length,
+        collection_5: herbs.length,
+        collection_6: herbs.length,
+        collection_7: herbs.filter(h => h.quality === 'rare').length,
+        collection_8: herbs.filter(h => h.quality === 'epic').length,
+        collection_9: herbs.filter(h => h.quality === 'legendary').length,
+        collection_10: uniqueHerbs
       }
+      const collectionTargets = {
+        collection_1: 1,
+        collection_2: 5,
+        collection_3: 10,
+        collection_4: 50,
+        collection_5: 100,
+        collection_6: 200,
+        collection_7: 100,
+        collection_8: 100,
+        collection_9: 100,
+        collection_10: 15
+      }
+      return Math.min(100, ((collectionValues[achievement.id] || 0) / (collectionTargets[achievement.id] || 1)) * 100)
     } else if (achievement.id.startsWith('resources_')) {
       const matches = achievement.description.match(/\d+/)
       const targetStones = matches ? parseInt(matches[0]) : 1000
       return Math.min(100, ((player.spiritStones || 0) / targetStones) * 100)
     } else if (achievement.id.startsWith('alchemy_')) {
-      if (achievement.id === 'alchemy_4') {
+      if (achievement.id === 'alchemy_9') {
         return Math.min(100, ((player.unlockedPillRecipes || 0) / 8) * 100)
-      } else {
-        const matches = achievement.description.match(/\d+/)
-        const targetPills = matches ? parseInt(matches[0]) : 100
-        return Math.min(100, ((player.pillsCrafted || 0) / targetPills) * 100)
       }
+      if (achievement.id === 'alchemy_10') {
+        return Math.min(100, ((player.highQualityPillsCrafted || 0) / 100) * 100)
+      }
+      const alchemyTargets = {
+        alchemy_1: 1,
+        alchemy_2: 5,
+        alchemy_3: 10,
+        alchemy_4: 50,
+        alchemy_5: 100,
+        alchemy_6: 500,
+        alchemy_7: 1000,
+        alchemy_8: 10000
+      }
+      return Math.min(100, ((player.pillsCrafted || 0) / (alchemyTargets[achievement.id] || 100)) * 100)
     }
     return 0
   } catch (error) {

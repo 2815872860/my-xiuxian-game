@@ -47,7 +47,8 @@ function enhanceEquipment(equipment, playerReinforceStones) {
     return { success: false, message: '强化石不足' }
   }
   // 计算成功率
-  const successRate = enhanceConfig.baseSuccessRate - currentLevel * 0.05
+  // 保留高强化等级的最低成功率，避免达到 +20 后永远无法继续强化。
+  const successRate = Math.max(0.05, enhanceConfig.baseSuccessRate - currentLevel * 0.05)
   const isSuccess = Math.random() < successRate
   if (!isSuccess) {
     return {
@@ -96,7 +97,10 @@ function reforgeEquipment(equipment, playerSpiritStones, confirmNewStats = true)
     return { success: false, message: '洗练石不足' }
   }
   const oldStats = { ...equipment.stats }
-  const availableStats = reforgeableStats[equipment.type]
+  const availableStats = reforgeableStats[equipment.type] || Object.keys(equipment.stats)
+  if (!availableStats.length) {
+    return { success: false, message: '该装备没有可洗练属性' }
+  }
   const tempStats = { ...equipment.stats }
   const originStats = Object.keys(tempStats)
   // 生成要处理的属性索引（1-3个随机）

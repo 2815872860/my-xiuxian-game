@@ -1,11 +1,11 @@
 // 计算随机事件触发概率
 const calculateEventChance = luck => {
-  return 0.3 * luck // 基础触发概率为30%，受幸运值影响
+  return Math.min(1, Math.max(0, 0.3 * (Number(luck) || 0))) // 基础触发概率为30%，受幸运值影响
 }
 
 // 计算奖励倍率
 const calculateRewardMultiplier = luck => {
-  return Math.random() < 0.5 * luck ? 1.5 : 1
+  return Math.random() < Math.min(1, Math.max(0, 0.5 * (Number(luck) || 0))) ? 1.5 : 1
 }
 
 // 处理单次探索
@@ -16,7 +16,8 @@ const handleExploration = (playerData, location) => {
     type: 'exploration_result',
     eventTriggered: false,
     rewardMultiplier: 1,
-    spiritCost: location.spiritCost
+    spiritCost: location.spiritCost,
+    locationId: location.id
   }
 
   // 随机事件判定

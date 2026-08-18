@@ -156,7 +156,7 @@
             <div>
               <p class="detail-kicker">命相择一</p>
               <h2>{{ selectedCard ? selectedCard.id : '自绘命相' }}</h2>
-              <p>{{ selectedCard ? selectedCard.visualBrief.split(',').slice(0, 3).join('，') : '把你想成为的样子写进命书，作为此世第一笔。' }}</p>
+              <p>{{ selectedCard ? selectedCard.shortDescription : '把你想成为的样子写进命书，作为此世第一笔。' }}</p>
             </div>
             <button v-if="selectedCard" class="text-button" type="button" @click="clearCard">改为自由描写</button>
           </div>
@@ -171,8 +171,8 @@
             >
               <span class="mini-art" :class="`mini-art--${card.accent}`"><img class="card-asset" :class="{ visible: cardImageReady[card.id] }" :src="cardAsset(card.id)" alt="" @load="cardImageReady[card.id] = true" @error="cardImageReady[card.id] = false" /><i></i><b></b><em></em></span>
               <span class="card-id">{{ card.id }}</span>
-              <span class="card-name">{{ card.visualBrief.split(',')[0].replace('adult ', '').replace(' with', '') }}</span>
-              <span class="card-rarity">原创命相</span>
+              <span class="card-name">{{ card.displayName }}</span>
+              <span class="card-rarity">{{ card.shortDescription }}</span>
               <span class="check-mark">✓</span>
             </button>
           </div>
@@ -226,7 +226,7 @@
           <h2>{{ playerName || '无名修士' }}，山河已记名</h2>
           <p class="opening-lead">{{ selectedOrigin.opening }}</p>
           <div class="opening-lines"><p v-for="line in openingLines" :key="line">{{ line }}</p></div>
-          <button class="ink-button ink-button--large" type="button" @click="enterWorld"><span>推门，走进第一张地图</span><i>→</i></button>
+          <button class="ink-button ink-button--large" type="button" :disabled="isEnteringWorld" @click="enterWorld"><span>{{ isEnteringWorld ? '正在写入命书' : '推门，走进第一张地图' }}</span><i>{{ isEnteringWorld ? '…' : '→' }}</i></button>
         </section>
 
         <footer v-if="stepIndex > 0 && stepIndex < 8" class="creation-footer">
@@ -255,6 +255,7 @@
 
 <script setup>
   import { computed, reactive, ref, watch } from 'vue'
+  import { useMessage } from 'naive-ui'
   import { useRouter } from 'vue-router'
   import { usePlayerStore } from '../stores/player'
   import {
@@ -270,6 +271,7 @@
 
   const router = useRouter()
   const playerStore = usePlayerStore()
+  const message = useMessage()
   const steps = [
     { id: 'race', name: '种族', title: '你从哪一脉醒来？', description: '三种血脉，三种看山河的方式。', mark: '择脉' },
     { id: 'gender', name: '性别', title: '形由心生', description: '命相并非枷锁，只是你此刻的回声。', mark: '定形' },
@@ -298,6 +300,7 @@
   const heroImageReady = ref(false)
   const cardImageReady = reactive({})
 
+  const isEnteringWorld = ref(false)
   const currentStep = computed(() => steps[Math.min(stepIndex.value, steps.length - 1)])
   const allowedOrigins = computed(() => ORIGINS.filter(origin => selectedRace.value.origins.includes(origin.id)))
   const cardPool = computed(() => CHARACTER_CARDS.filter(card => card.raceId === selectedRace.value.id && card.genderId === selectedGender.value.id))
@@ -325,15 +328,15 @@
     '前方有路，身后也有未说完的话。'
   ])
   const footerHint = computed(() => {
-    if (stepIndex.value === 1) return '可以自由组合大部分出生地'
-    if (stepIndex.value === 4) return '出生地会决定初始境界与开场剧情'
-    if (stepIndex.value === 5) return selectedCard.value ? '已选定原创命相' : '请选择命相卡，或留下自由描写'
+    if (stepIndex.value === 2) return '道号会显示在世界页与战斗记录中'
+    if (stepIndex.value === 3) return '出生地会决定初始境界与开场剧情'
+    if (stepIndex.value === 4) return selectedCard.value ? '已选定原创命相' : '请选择命相卡，或留下自由描写'
     return '所有选择都会写入你的命书'
   })
   const canContinue = computed(() => {
-    if (stepIndex.value === 3) return playerName.value.trim().length > 0
-    if (stepIndex.value === 4) return Boolean(selectedOrigin.value)
-    if (stepIndex.value === 5) return Boolean(selectedCard.value || appearanceText.value.trim())
+    if (stepIndex.value === 2) return playerName.value.trim().length > 0
+    if (stepIndex.value === 3) return Boolean(selectedOrigin.value)
+    if (stepIndex.value === 4) return Boolean(selectedCard.value || appearanceText.value.trim())
     return true
   })
 
@@ -357,9 +360,16 @@
   const clearCard = () => {
     selectedCard.value = null
   }
-  const cardAsset = cardId => `./assets/characters/character-card-${cardId}.png`
+  const cardAsset = cardId => {
+    const assetId = cardId === 'I-M-03' ? 'I-M-01' : cardId
+    return `./assets/characters/character-card-${assetId}.png`
+  }
   const nextStep = () => {
     if (!canContinue.value) return
+    if (stepIndex.value === steps.length - 1) {
+      enterWorld()
+      return
+    }
     if (stepIndex.value < steps.length - 1) stepIndex.value += 1
   }
   const previousStep = () => {
@@ -369,20 +379,29 @@
     if (index <= stepIndex.value) stepIndex.value = index
   }
   const enterWorld = async () => {
-    await playerStore.beginJourney({
-      name: playerName.value.trim() || '无名修士',
-      race: selectedRace.value.id,
-      gender: selectedGender.value.id,
-      origin: selectedOrigin.value.id,
-      originData: selectedOrigin.value,
-      appearanceId: selectedCard.value?.id || 'custom',
-      appearancePrompt: selectedCard.value?.prompt || appearanceText.value.trim(),
-      bodyProfile: bodyProfile.value,
-      spiritRoot: spiritRoot.value,
-      startingTechnique: startingTechnique.value,
-      birthStory: selectedOrigin.value.opening
-    })
-    await router.replace('/world')
+    if (isEnteringWorld.value) return
+    isEnteringWorld.value = true
+    try {
+      await playerStore.beginJourney({
+        name: playerName.value.trim() || '无名修士',
+        race: selectedRace.value.id,
+        gender: selectedGender.value.id,
+        origin: selectedOrigin.value.id,
+        originData: selectedOrigin.value,
+        appearanceId: selectedCard.value?.id || 'custom',
+        appearancePrompt: selectedCard.value?.prompt || appearanceText.value.trim(),
+        bodyProfile: bodyProfile.value,
+        spiritRoot: spiritRoot.value,
+        startingTechnique: startingTechnique.value,
+        birthStory: selectedOrigin.value.opening
+      })
+      await router.replace('/world')
+    } catch (error) {
+      console.error('进入世界失败:', error)
+      message.error(`写入命书失败，请重试或先导出备份${error?.message ? `：${error.message}` : ''}`)
+    } finally {
+      isEnteringWorld.value = false
+    }
   }
 </script>
 

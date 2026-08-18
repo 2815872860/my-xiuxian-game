@@ -10,7 +10,13 @@
         通过打坐修炼来提升修为，积累足够的修为后可以尝试突破境界。
       </n-alert>
       <n-space vertical>
-        <n-button type="primary" size="large" block @click="cultivate" :disabled="playerStore.spirit < cultivationCost">
+        <n-button
+          type="primary"
+          size="large"
+          block
+          @click="cultivate"
+          :disabled="playerStore.spirit < cultivationCost || isCultivationPending"
+        >
           打坐修炼 (消耗 {{ cultivationCost }} 灵力)
         </n-button>
         <n-button :type="isAutoCultivating ? 'warning' : 'success'" size="large" block @click="toggleAutoCultivation">
@@ -21,7 +27,7 @@
           size="large"
           block
           @click="cultivateUntilBreakthrough"
-          :disabled="playerStore.spirit < calculateBreakthroughCost()"
+          :disabled="playerStore.spirit < calculateBreakthroughCost() || isCultivationPending"
         >
           一键突破
         </n-button>
@@ -41,7 +47,7 @@
 
 <script setup>
   import { usePlayerStore } from '../stores/player'
-  import { ref, onUnmounted } from 'vue'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { NIcon } from 'naive-ui'
   import { BookOutline } from '@vicons/ionicons5'
   import LogPanel from '../components/LogPanel.vue'
@@ -88,17 +94,33 @@
   // 自动修炼状态
   const isAutoCultivating = ref(false)
   const cultivationTimer = ref(null)
+  const isCultivationPending = ref(false)
+  let cultivationPendingTimer = null
 
   // 显示消息并处理重复
   const showMessage = (type, content) => {
     return logRef.value?.addLog(type, content)
   }
 
+  const clearCultivationPending = () => {
+    if (cultivationPendingTimer) {
+      clearTimeout(cultivationPendingTimer)
+      cultivationPendingTimer = null
+    }
+  }
+
+  const failCultivationPending = content => {
+    clearCultivationPending()
+    isCultivationPending.value = false
+    showMessage('error', content)
+  }
+
   // 计算实际获得的修为
   const calculateCultivationGain = () => {
     let gain = cultivationGain.value
     // 根据幸运值计算是否获得额外修为
-    if (Math.random() < extraCultivationChance * playerStore.luck) {
+    const extraChance = Math.min(1, Math.max(0, extraCultivationChance * (Number(playerStore.luck) || 0)))
+    if (Math.random() < extraChance) {
       gain *= 2
       showMessage('success', '福缘不错，获得双倍修为！')
     }
@@ -110,51 +132,90 @@
     return playerStore.cultivation >= playerStore.maxCultivation
   }
 
-  // 修炼Worker
-  const cultivationWorker = new Worker(new URL('../workers/cultivation.js', import.meta.url), { type: 'module' })
+  // 修炼 Worker 延迟创建，避免 Worker 不可用时整页无法加载。
+  let cultivationWorker = null
+  const initCultivationWorker = () => {
+    if (cultivationWorker) return true
+    try {
+      cultivationWorker = new Worker(new URL('../workers/cultivation.js', import.meta.url), { type: 'module' })
+    } catch (error) {
+      cultivationWorker = null
+      console.error('创建修炼 Worker 失败:', error)
+      showMessage('error', '修炼计算模块暂时不可用，手动修炼仍可继续')
+      return false
+    }
+    cultivationWorker.onerror = error => {
+      console.error('Cultivation worker error:', error)
+      cultivationWorker?.terminate()
+      cultivationWorker = null
+      failCultivationPending('修炼计算暂时失效，请稍后重试')
+    }
 
-  // 处理Worker消息
-  cultivationWorker.onmessage = ({ data }) => {
-    if (data.type === 'error') {
-      showMessage('error', data.message)
-      return
-    }
-    if (data.type === 'success') {
-      const { spiritCost, cultivationGain, doubleGainTimes } = data.result
-      // 扣除灵力
-      playerStore.spirit -= spiritCost
-      // 增加修为
-      playerStore.cultivate(cultivationGain)
-      if (doubleGainTimes > 0) {
-        showMessage('success', `福缘不错，获得${doubleGainTimes}次双倍修为！`)
+    // 处理 Worker 消息
+    cultivationWorker.onmessage = ({ data }) => {
+      if (data.type === 'error') {
+        failCultivationPending(data.message)
+        return
       }
-      // 尝试突破
-      if (canBreakthrough() && playerStore.tryBreakthrough()) {
-        showMessage('success', `突破成功！恭喜进入${playerStore.realm}！`)
-      } else if (canBreakthrough()) {
-        showMessage('info', '已达到突破条件，但突破失败，请继续努力！')
-      } else {
-        showMessage('success', '修炼成功！')
+      if (data.type === 'success') {
+        clearCultivationPending()
+        isCultivationPending.value = false
+        if (!data.result || !Number.isFinite(Number(data.result.spiritCost)) || !Number.isFinite(Number(data.result.cultivationGain))) {
+          showMessage('error', '修炼计算结果无效')
+          return
+        }
+        const { spiritCost, cultivationGain, doubleGainTimes } = data.result
+        if (playerStore.spirit < spiritCost) {
+          showMessage('error', '当前灵力不足，修炼结果已取消')
+          return
+        }
+        // 扣除灵力
+        playerStore.spirit -= spiritCost
+        // 增加修为
+        playerStore.cultivate(cultivationGain)
+        if (doubleGainTimes > 0) {
+          showMessage('success', `福缘不错，获得${doubleGainTimes}次双倍修为！`)
+        }
+        // 尝试突破
+        if (canBreakthrough() && playerStore.tryBreakthrough()) {
+          showMessage('success', `突破成功！恭喜进入${playerStore.realm}！`)
+        } else if (canBreakthrough()) {
+          showMessage('info', '已达到突破条件，但突破失败，请继续努力！')
+        } else {
+          showMessage('success', '修炼成功！')
+        }
       }
     }
+    return true
   }
 
   // 一键修炼（直到突破）
   const cultivateUntilBreakthrough = () => {
     try {
+      if (isCultivationPending.value) return
+      if (!initCultivationWorker()) return
       // 检查是否已经达到突破条件
       if (!canBreakthrough()) {
         // 发送数据到Worker进行计算
-        cultivationWorker.postMessage({
-          type: 'cultivateUntilBreakthrough',
-          playerData: {
-            level: playerStore.level,
-            spirit: playerStore.spirit,
-            cultivation: playerStore.cultivation,
-            maxCultivation: playerStore.maxCultivation,
-            luck: playerStore.luck
-          }
-        })
+        isCultivationPending.value = true
+        try {
+          cultivationWorker.postMessage({
+            type: 'cultivateUntilBreakthrough',
+            playerData: {
+              level: playerStore.level,
+              spirit: playerStore.spirit,
+              cultivation: playerStore.cultivation,
+              maxCultivation: playerStore.maxCultivation,
+              luck: playerStore.luck
+            }
+          })
+          cultivationPendingTimer = setTimeout(() => {
+            failCultivationPending('修炼计算超时，已解除等待状态，请稍后重试')
+          }, 12000)
+        } catch (error) {
+          console.error('发送修炼计算失败:', error)
+          failCultivationPending('修炼计算暂时失效，请稍后重试')
+        }
       } else {
         // 直接尝试突破
         if (playerStore.tryBreakthrough()) {
@@ -164,6 +225,7 @@
         }
       }
     } catch (error) {
+      isCultivationPending.value = false
       console.error('一键修炼出错：', error)
       showMessage('error', '修炼失败！')
     }
@@ -172,6 +234,7 @@
   // 手动修炼
   const cultivate = () => {
     try {
+      if (isCultivationPending.value) return
       const currentCost = getCurrentCultivationCost()
       if (playerStore.spirit >= currentCost) {
         const oldRealm = playerStore.realm
@@ -199,10 +262,11 @@
       if (isAutoCultivating.value) {
         if (cultivationTimer.value) return
         cultivationTimer.value = setInterval(() => {
+          if (isCultivationPending.value) return
           const currentCost = getCurrentCultivationCost()
           if (playerStore.spirit >= currentCost) {
             playerStore.spirit -= currentCost
-            playerStore.cultivate(cultivationGain.value)
+            playerStore.cultivate(calculateCultivationGain())
           }
         }, autoGainInterval)
       } else {
@@ -218,9 +282,16 @@
     }
   }
 
+  onMounted(() => {
+    initCultivationWorker()
+  })
+
   // 组件卸载时清理定时器
   onUnmounted(() => {
     try {
+      clearCultivationPending()
+      cultivationWorker?.terminate()
+      cultivationWorker = null
       if (cultivationTimer.value) {
         clearInterval(cultivationTimer.value)
         cultivationTimer.value = null

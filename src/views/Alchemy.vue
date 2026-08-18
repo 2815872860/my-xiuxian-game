@@ -1,6 +1,23 @@
 <template>
   <n-card title="丹药炼制">
     <n-space vertical>
+      <div class="alchemy-summary">
+        <div>
+          <span>已炼制</span>
+          <b>{{ playerStore.pillsCrafted }}</b>
+          <small>炉</small>
+        </div>
+        <div>
+          <span>丹药库存</span>
+          <b>{{ pillStockCount }}</b>
+          <small>枚</small>
+        </div>
+        <div>
+          <span>炼丹加成</span>
+          <b>{{ (alchemyBonus * 100).toFixed(0) }}%</b>
+          <small>成功率</small>
+        </div>
+      </div>
       <template v-if="unlockedRecipes.length > 0">
         <n-divider>丹方选择</n-divider>
         <!-- 丹方选择 -->
@@ -12,6 +29,12 @@
                 <n-space>
                   <n-tag type="info">{{ pillGrades[recipe.grade].name }}</n-tag>
                   <n-tag type="warning">{{ pillTypes[recipe.type].name }}</n-tag>
+                </n-space>
+                <n-space justify="space-between" align="center">
+                  <n-tag :type="checkMaterials(recipe) ? 'success' : 'warning'" size="small">
+                    {{ checkMaterials(recipe) ? '材料齐全' : '材料不足' }}
+                  </n-tag>
+                  <n-text depth="3" class="material-summary">{{ getRecipeMaterialSummary(recipe) }}</n-text>
                 </n-space>
                 <n-button
                   @click="selectRecipe(recipe)"
@@ -56,7 +79,7 @@
           </n-descriptions-item>
           <n-descriptions-item label="效果数值">+{{ (currentEffect.value * 100).toFixed(1) }}%</n-descriptions-item>
           <n-descriptions-item label="持续时间">{{ Math.floor(currentEffect.duration / 60) }}分钟</n-descriptions-item>
-          <n-descriptions-item label="成功率">{{ (currentEffect.successRate * 100).toFixed(1) }}%</n-descriptions-item>
+          <n-descriptions-item label="成功率">{{ (currentSuccessRate * 100).toFixed(1) }}%</n-descriptions-item>
         </n-descriptions>
       </template>
       <!-- 炼制按钮 -->
@@ -76,7 +99,7 @@
 </template>
 
 <script setup>
-  import { ref, computed } from 'vue'
+  import { ref, computed, watch } from 'vue'
   import { usePlayerStore } from '../stores/player'
   import { pillRecipes, pillGrades, pillTypes, calculatePillEffect } from '../plugins/pills'
   import { herbs } from '../plugins/herbs'
@@ -92,6 +115,21 @@
   const unlockedRecipes = computed(() => {
     return pillRecipes.filter(recipe => playerStore.pillRecipes.includes(recipe.id))
   })
+
+  // 进入丹室时默认展示第一张已掌握丹方
+  watch(
+    unlockedRecipes,
+    recipes => {
+      if (!recipes.length) {
+        selectedRecipe.value = null
+        return
+      }
+      if (!selectedRecipe.value || !recipes.some(recipe => recipe.id === selectedRecipe.value.id)) {
+        selectedRecipe.value = recipes[0]
+      }
+    },
+    { immediate: true }
+  )
 
   // 选择丹方
   const selectRecipe = recipe => {
@@ -113,6 +151,11 @@
     return `${count}/${material.count}`
   }
 
+  // 获取丹方卡片上的材料摘要
+  const getRecipeMaterialSummary = recipe => {
+    return recipe.materials.map(material => `${getHerbName(material.herb)} ×${material.count}`).join(' · ')
+  }
+
   // 获取灵草名称
   const getHerbName = herbId => {
     const herb = herbs.find(h => h.id === herbId)
@@ -125,12 +168,26 @@
     return calculatePillEffect(selectedRecipe.value, playerStore.level)
   })
 
+  // 显示计入幸运与炼丹加成后的实际成功率
+  const currentSuccessRate = computed(() => {
+    if (!selectedRecipe.value) return 0
+    const baseRate = pillGrades[selectedRecipe.value.grade]?.successRate || 0
+    const multiplier = (playerStore.luck ?? 1) * (playerStore.alchemyRate ?? 1)
+    return Math.min(1, baseRate * multiplier)
+  })
+
+  const pillStockCount = computed(() => (playerStore.items || []).filter(item => item.type === 'pill').length)
+  const alchemyBonus = computed(() => {
+    const multiplier = (playerStore.luck ?? 1) * (playerStore.alchemyRate ?? 1)
+    return Math.max(0, multiplier - 1)
+  })
+
   // 炼制丹药
   const craftPill = () => {
     if (!selectedRecipe.value) return
     const result = playerStore.craftPill(selectedRecipe.value.id)
     if (result.success) {
-      logRef.value?.addLog('success', '炼制成功！')
+      logRef.value?.addLog('success', `炼制成功：${selectedRecipe.value.name}，已收入行囊。`)
       // 播放成功动画效果
       const btn = document.querySelector('.craft-button')
       if (btn) {
@@ -140,7 +197,7 @@
         }, 1000)
       }
     } else {
-      logRef.value?.addLog('error', `炼制失败：${result.message}`)
+      logRef.value?.addLog('error', `炼制失败：${result.message}（当前成功率约 ${(currentSuccessRate.value * 100).toFixed(1)}%）`)
       // 播放失败动画效果
       const btn = document.querySelector('.craft-button')
       if (btn) {
@@ -164,6 +221,41 @@
 
   .n-collapse {
     margin-top: 12px;
+  }
+
+  .alchemy-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 6px;
+  }
+
+  .alchemy-summary > div {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid rgba(163, 93, 68, 0.18);
+    border-radius: 8px;
+    background: rgba(163, 93, 68, 0.05);
+  }
+
+  .alchemy-summary span,
+  .alchemy-summary small {
+    color: #7c857b;
+  }
+
+  .alchemy-summary b {
+    margin-left: auto;
+    color: #a35d44;
+    font-size: 18px;
+  }
+
+  .material-summary {
+    max-width: 72%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .craft-button {
