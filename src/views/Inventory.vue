@@ -352,7 +352,7 @@
     v-model:show="showEquipmentModal"
     preset="dialog"
     :title="`${equipmentTypes[selectedEquipmentType]}列表`"
-    style="width: 800px"
+    style="width: min(800px, calc(100vw - 28px)); max-width: calc(100vw - 28px)"
   >
     <n-space vertical>
       <n-space justify="space-between">
@@ -389,7 +389,12 @@
     </n-space>
   </n-modal>
   <!-- 装备详情弹窗 -->
-  <n-modal v-model:show="showEquipmentDetailModal" preset="dialog" :title="selectedEquipment?.name || '装备详情'">
+  <n-modal
+    v-model:show="showEquipmentDetailModal"
+    preset="dialog"
+    :title="selectedEquipment?.name || '装备详情'"
+    style="width: min(800px, calc(100vw - 28px)); max-width: calc(100vw - 28px)"
+  >
     <n-descriptions bordered>
       <n-descriptions-item label="品质">
         <span :style="{ color: selectedEquipment?.qualityInfo?.color }">
@@ -1112,11 +1117,11 @@
 </script>
 
 <style scoped>
-  .inventory-item-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; }
-  .inventory-item-summary p { margin: 0; }
-  .inventory-item-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
-  .inventory-item-art { width: 56px; height: 56px; flex: none; object-fit: cover; border-radius: 8px; background: #e8dfd0; box-shadow: 0 2px 8px rgba(39, 50, 46, .12); }
-  .inventory-item-art--small { width: 30px; height: 30px; border-radius: 5px; }
+  .inventory-item-summary { display: flex; align-items: center; gap: 10px; min-height: 58px; min-width: 0; overflow: hidden; }
+  .inventory-item-summary p { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+  .inventory-item-title { display: inline-flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inventory-item-art { display: block; width: 56px; height: 56px; max-width: 56px; max-height: 56px; flex: 0 0 56px; object-fit: contain; border-radius: 8px; background: #e8dfd0; box-shadow: 0 2px 8px rgba(39, 50, 46, .12); }
+  .inventory-item-art--small { width: 30px; height: 30px; max-width: 30px; max-height: 30px; flex-basis: 30px; border-radius: 5px; }
   .n-card {
     cursor: pointer;
   }
@@ -1142,5 +1147,9 @@
     margin-bottom: 12px;
     font-size: 16px;
     color: #666;
+  }
+
+  @media (max-width: 600px) {
+    .reforge-compare { flex-direction: column; gap: 10px; }
   }
 </style>

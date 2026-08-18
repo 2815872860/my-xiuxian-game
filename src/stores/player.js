@@ -1350,13 +1350,14 @@ export const usePlayerStore = defineStore('player', {
       this.saveData()
     },
     // 炼制丹药
-    craftPill(recipeId) {
+    craftPill(recipeId, processBonus = 0) {
       const recipe = pillRecipes.find(r => r.id === recipeId)
       if (!recipe || !this.pillRecipes.includes(recipeId)) {
         return { success: false, message: '未掌握丹方' }
       }
       const fragments = this.pillFragments[recipeId] || 0
-      const result = tryCreatePill(recipe, this.herbs, this, fragments, this.luck * this.alchemyRate)
+      const safeProcessBonus = Math.min(0.2, Math.max(0, Number(processBonus) || 0))
+      const result = tryCreatePill(recipe, this.herbs, this, fragments, this.luck * this.alchemyRate * (1 + safeProcessBonus))
       if (result.success) {
         // 消耗材料
         recipe.materials.forEach(material => {
