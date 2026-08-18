@@ -21,9 +21,9 @@
           v-for="(item, index) in steps"
           :key="item.id"
           class="rail-step"
-          :class="{ active: stepIndex === index, passed: stepIndex > index }"
+          :class="{ active: stepIndex === index + 1, passed: stepIndex > index + 1 }"
           type="button"
-          :disabled="index > stepIndex"
+          :disabled="index + 1 > stepIndex"
           @click="jumpTo(index)"
         >
           <span class="rail-index">{{ String(index + 1).padStart(2, '0') }}</span>
@@ -36,7 +36,7 @@
       <section class="creation-stage">
         <div class="stage-heading">
           <div>
-            <p class="stage-eyebrow">第 {{ String(Math.min(stepIndex + 1, 8)).padStart(2, '0') }} / 08 卷</p>
+            <p class="stage-eyebrow">第 {{ String(Math.min(Math.max(stepIndex, 1), 8)).padStart(2, '0') }} / 08 卷</p>
             <h1>{{ currentStep.title }}</h1>
             <p class="stage-description">{{ currentStep.description }}</p>
           </div>
@@ -301,7 +301,7 @@
   const cardImageReady = reactive({})
 
   const isEnteringWorld = ref(false)
-  const currentStep = computed(() => steps[Math.min(stepIndex.value, steps.length - 1)])
+  const currentStep = computed(() => steps[Math.min(Math.max(stepIndex.value - 1, 0), steps.length - 1)])
   const allowedOrigins = computed(() => ORIGINS.filter(origin => selectedRace.value.origins.includes(origin.id)))
   const cardPool = computed(() => CHARACTER_CARDS.filter(card => card.raceId === selectedRace.value.id && card.genderId === selectedGender.value.id))
   const cardPages = computed(() => {
@@ -328,15 +328,15 @@
     '前方有路，身后也有未说完的话。'
   ])
   const footerHint = computed(() => {
-    if (stepIndex.value === 2) return '道号会显示在世界页与战斗记录中'
-    if (stepIndex.value === 3) return '出生地会决定初始境界与开场剧情'
-    if (stepIndex.value === 4) return selectedCard.value ? '已选定原创命相' : '请选择命相卡，或留下自由描写'
+    if (stepIndex.value === 3) return '道号会显示在世界页与战斗记录中'
+    if (stepIndex.value === 4) return '出生地会决定初始境界与开场剧情'
+    if (stepIndex.value === 5) return selectedCard.value ? '已选定原创命相' : '请选择命相卡，或留下自由描写'
     return '所有选择都会写入你的命书'
   })
   const canContinue = computed(() => {
-    if (stepIndex.value === 2) return playerName.value.trim().length > 0
-    if (stepIndex.value === 3) return Boolean(selectedOrigin.value)
-    if (stepIndex.value === 4) return Boolean(selectedCard.value || appearanceText.value.trim())
+    if (stepIndex.value === 3) return playerName.value.trim().length > 0
+    if (stepIndex.value === 4) return Boolean(selectedOrigin.value)
+    if (stepIndex.value === 5) return Boolean(selectedCard.value || appearanceText.value.trim())
     return true
   })
 
@@ -376,7 +376,7 @@
     if (stepIndex.value > 0) stepIndex.value -= 1
   }
   const jumpTo = index => {
-    if (index <= stepIndex.value) stepIndex.value = index
+    if (index + 1 <= stepIndex.value) stepIndex.value = index + 1
   }
   const enterWorld = async () => {
     if (isEnteringWorld.value) return
